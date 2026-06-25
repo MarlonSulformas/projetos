@@ -1,0 +1,32 @@
+{
+  "name": "Projetista",
+  "type": "object",
+  "properties": {
+    "nome": {
+      "type": "string"
+    },
+    "razao_social": {
+      "type": "string"
+    },
+    "cnpj": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "especialidade": {
+      "type": "string"
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "nome",
+    "razao_social",
+    "cnpj",
+    "email",
+    "especialidade"
+  ]
+}
