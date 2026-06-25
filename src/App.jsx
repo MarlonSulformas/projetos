@@ -14,6 +14,7 @@ import ForgotPassword from '@/pages/ForgotPassword';
 import ResetPassword from '@/pages/ResetPassword';
 import Home from '@/pages/Home';
 import Projetistas from '@/pages/Projetistas';
+import Configuracao from '@/pages/Configuracao';
 import AppLayout from '@/components/layout/AppLayout';
 
 const AuthenticatedApp = () => {
@@ -49,6 +50,7 @@ const AuthenticatedApp = () => {
         <Route element={<AppLayout />}>
           <Route path="/" element={<Home />} />
           <Route path="/projetistas" element={<Projetistas />} />
+          <Route path="/configuracao" element={<Configuracao />} />
         </Route>
       </Route>
       <Route path="*" element={<PageNotFound />} />
