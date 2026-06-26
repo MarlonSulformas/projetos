@@ -430,7 +430,7 @@ export default function Configuracao() {
           </div>
 
           {/* Canvas */}
-          <div className="flex-1 overflow-auto h-full w-full">
+          <div className="flex-1 overflow-hidden h-full w-full">
             {pdfUrl ? (
               <BlueprintCanvas
                 zoomScale={zoomScale}

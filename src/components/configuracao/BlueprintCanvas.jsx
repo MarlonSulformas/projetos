@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
 
 const COLOR_MAP = {
@@ -11,39 +11,25 @@ const COLOR_MAP = {
 function getColor(id) { return COLOR_MAP[id] || COLOR_MAP.blue; }
 
 /**
- * zoomScale: decimal (1.0 = 100%, 1.5 = 150%, etc.)
+ * Layout structure:
  *
- * Strategy: the outer grey div is a fixed-size scroll container (overflow:auto).
- * The inner "page" div has its size set to (naturalW * zoomScale) x (naturalH * zoomScale)
- * so it physically expands in the layout and scrollbars appear naturally.
- * The iframe fills that inner div 100% — no CSS transform is applied anywhere.
+ * [scrollBox]  ← static window, overflow:auto, flex center
+ *   [scaler]   ← transform:scale(zoomScale), transform-origin:center center
+ *               width/height fixed at 100% of scrollBox baseline
+ *     [iframe] ← fills scaler 100%
+ *     [overlay]← fills scaler 100%, draws regions
+ *
+ * The scaler uses `transform` so its *layout* footprint stays the same,
+ * but we compensate scrollable area by dynamically adjusting the scrollBox
+ * min-width/min-height via inline style so scrollbars appear when zoomed in.
  */
 export default function BlueprintCanvas({ zoomScale = 1, activeAreaId, areas, pdfUrl, onRegionDrawn, onRegionDeleted }) {
-  const scrollRef = useRef(null);        // outer grey container
-  const overlayRef = useRef(null);       // drawing overlay (same size as inner page)
-  const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
+  const scrollBoxRef = useRef(null);
+  const overlayRef = useRef(null);
   const [drawing, setDrawing] = useState(null);
   const [hoveredId, setHoveredId] = useState(null);
 
-  // Measure the outer container once to get the "100%" baseline
-  useEffect(() => {
-    if (!scrollRef.current) return;
-    const { width, height } = scrollRef.current.getBoundingClientRect();
-    setNaturalSize({ w: width, h: height });
-
-    const obs = new ResizeObserver(entries => {
-      const { width, height } = entries[0].contentRect;
-      // Only update natural size when zoom is 1 (i.e. the true container size)
-      setNaturalSize({ w: width, h: height });
-    });
-    obs.observe(scrollRef.current);
-    return () => obs.disconnect();
-  }, []);
-
-  const pageW = naturalSize.w * zoomScale;
-  const pageH = naturalSize.h * zoomScale;
-
-  // Mouse coords relative to the unscaled coordinate space of the page
+  // Mouse position in unscaled coordinates
   function getPos(e) {
     const rect = overlayRef.current.getBoundingClientRect();
     return {
@@ -82,135 +68,164 @@ export default function BlueprintCanvas({ zoomScale = 1, activeAreaId, areas, pd
 
   const activeArea = activeAreaId ? areas.find(a => a.id === activeAreaId) : null;
 
+  // When zoomed > 1 we need the scrollBox to know the scaled size so scrollbars appear.
+  // We do this by setting a min-width/min-height on the scrollBox content via a ghost div.
+  // The scaler itself uses CSS transform (doesn't affect layout), so we add an explicit
+  // invisible spacer that occupies the scaled dimensions.
+  const scaledPercent = `${zoomScale * 100}%`;
+
   return (
     /*
-     * OUTER grey container — static, fills available space, never transforms.
-     * overflow:auto → scrollbars appear only here when inner page is larger.
-     * flex + center → centers the page when it's smaller than the container.
+     * OUTER (scroll box) — static, never transforms.
+     * overflow:auto → scrollbars appear here when content is larger.
+     * flex + center → centers the PDF when zoom < 100%.
      */
     <div
-      ref={scrollRef}
+      ref={scrollBoxRef}
       style={{
         width: "100%",
         height: "100%",
         overflow: "auto",
-        background: "#F0F2F5",
+        background: "#1a1a1a",
         display: "flex",
-        alignItems: naturalSize.h * zoomScale <= naturalSize.h ? "center" : "flex-start",
-        justifyContent: naturalSize.w * zoomScale <= naturalSize.w ? "center" : "flex-start",
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
       }}
     >
       {/*
-       * INNER page — its physical size changes with zoom.
-       * No transform — the element truly expands/contracts in the DOM.
+       * INNER (scaler) — this is the only element that receives transform:scale.
+       * It sits as a flex child so centering works when scale < 1.
+       * When scale > 1 the transform makes it visually larger but layout-wise
+       * it still occupies the original 100%×100%. To force the scrollBox to grow
+       * its scroll area, we use a transparent ghost div below.
        */}
-      {naturalSize.w > 0 && (
-        <div
+      <div
+        style={{
+          position: "absolute",
+          // Fill the natural (unscaled) space of the scroll box
+          width: "100%",
+          height: "100%",
+          transform: `scale(${zoomScale})`,
+          transformOrigin: "center center",
+          transition: "transform 0.1s ease-out",
+          flexShrink: 0,
+        }}
+      >
+        {/* PDF iframe */}
+        <iframe
+          src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
           style={{
-            position: "relative",
-            width: `${pageW}px`,
-            height: `${pageH}px`,
-            flexShrink: 0,
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            border: "none",
+            pointerEvents: activeAreaId ? "none" : "auto",
           }}
+          title="PDF Viewer"
+        />
+
+        {/* Drawing overlay */}
+        <div
+          ref={overlayRef}
+          style={{
+            position: "absolute",
+            inset: 0,
+            cursor: activeAreaId ? "crosshair" : "default",
+          }}
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={onMouseUp}
+          onMouseLeave={onMouseUp}
         >
-          {/* PDF iframe fills the scaled page exactly */}
-          <iframe
-            src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
-            style={{
-              position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
-              border: "none",
-              pointerEvents: activeAreaId ? "none" : "auto",
-            }}
-            title="PDF Viewer"
-          />
+          {/* Existing regions */}
+          {areas.filter(a => a.rect).map(area => {
+            const c = getColor(area.color);
+            const r = area.rect;
+            const isHovered = hoveredId === area.id;
+            return (
+              <div
+                key={area.id}
+                style={{
+                  position: "absolute",
+                  left: `${r.x}px`,
+                  top: `${r.y}px`,
+                  width: `${r.width}px`,
+                  height: `${r.height}px`,
+                  border: `2px dashed ${c.border}`,
+                  backgroundColor: c.bg,
+                  borderRadius: "3px",
+                  pointerEvents: activeAreaId ? "none" : "auto",
+                }}
+                onMouseEnter={() => setHoveredId(area.id)}
+                onMouseLeave={() => setHoveredId(null)}
+              >
+                <span style={{
+                  position: "absolute", top: "4px", left: "6px",
+                  fontSize: "10px", fontWeight: "600",
+                  color: c.tag, backgroundColor: c.tagBg,
+                  padding: "2px 6px", borderRadius: "4px",
+                  whiteSpace: "nowrap",
+                }}>
+                  {area.name}
+                </span>
+                {isHovered && (
+                  <button
+                    onClick={e => { e.stopPropagation(); onRegionDeleted(area.id); }}
+                    style={{
+                      position: "absolute", top: "4px", right: "4px",
+                      width: "22px", height: "22px",
+                      background: "#EF4444", borderRadius: "4px",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      cursor: "pointer", border: "none",
+                    }}
+                  >
+                    <Trash2 style={{ width: "12px", height: "12px", color: "white" }} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
 
-          {/* Drawing overlay — same size as inner page */}
-          <div
-            ref={overlayRef}
-            style={{
-              position: "absolute",
-              inset: 0,
-              cursor: activeAreaId ? "crosshair" : "default",
-            }}
-            onMouseDown={onMouseDown}
-            onMouseMove={onMouseMove}
-            onMouseUp={onMouseUp}
-            onMouseLeave={onMouseUp}
-          >
-            {/* Existing regions — coords are in unscaled space, scaled via CSS */}
-            {areas.filter(a => a.rect).map(area => {
-              const c = getColor(area.color);
-              const r = area.rect;
-              const isHovered = hoveredId === area.id;
-              return (
-                <div
-                  key={area.id}
-                  style={{
-                    position: "absolute",
-                    left: `${r.x * zoomScale}px`,
-                    top: `${r.y * zoomScale}px`,
-                    width: `${r.width * zoomScale}px`,
-                    height: `${r.height * zoomScale}px`,
-                    border: `2px dashed ${c.border}`,
-                    backgroundColor: c.bg,
-                    borderRadius: "3px",
-                    pointerEvents: activeAreaId ? "none" : "auto",
-                  }}
-                  onMouseEnter={() => setHoveredId(area.id)}
-                  onMouseLeave={() => setHoveredId(null)}
-                >
-                  <span style={{
-                    position: "absolute", top: "4px", left: "6px",
-                    fontSize: "10px", fontWeight: "600",
-                    color: c.tag, backgroundColor: c.tagBg,
-                    padding: "2px 6px", borderRadius: "4px",
-                    whiteSpace: "nowrap",
-                  }}>
-                    {area.name}
-                  </span>
-                  {isHovered && (
-                    <button
-                      onClick={e => { e.stopPropagation(); onRegionDeleted(area.id); }}
-                      style={{
-                        position: "absolute", top: "4px", right: "4px",
-                        width: "22px", height: "22px",
-                        background: "#EF4444", borderRadius: "4px",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        cursor: "pointer", border: "none",
-                      }}
-                    >
-                      <Trash2 style={{ width: "12px", height: "12px", color: "white" }} />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* In-progress rect — scaled coords */}
-            {inProgress && activeArea && (() => {
-              const c = getColor(activeArea.color);
-              return (
-                <div
-                  style={{
-                    position: "absolute",
-                    left: `${inProgress.x * zoomScale}px`,
-                    top: `${inProgress.y * zoomScale}px`,
-                    width: `${inProgress.width * zoomScale}px`,
-                    height: `${inProgress.height * zoomScale}px`,
-                    border: `2px dashed ${c.border}`,
-                    backgroundColor: c.bg,
-                    borderRadius: "3px",
-                    pointerEvents: "none",
-                  }}
-                />
-              );
-            })()}
-          </div>
+          {/* In-progress rect */}
+          {inProgress && activeArea && (() => {
+            const c = getColor(activeArea.color);
+            return (
+              <div
+                style={{
+                  position: "absolute",
+                  left: `${inProgress.x}px`,
+                  top: `${inProgress.y}px`,
+                  width: `${inProgress.width}px`,
+                  height: `${inProgress.height}px`,
+                  border: `2px dashed ${c.border}`,
+                  backgroundColor: c.bg,
+                  borderRadius: "3px",
+                  pointerEvents: "none",
+                }}
+              />
+            );
+          })()}
         </div>
-      )}
+      </div>
+
+      {/*
+       * GHOST spacer — invisible, not interactive.
+       * Its physical size equals the scaled dimensions so the scrollBox
+       * scroll area expands and scrollbars appear when zoom > 1.
+       * Uses min-width/min-height so it doesn't shrink the scrollBox when zoom < 1.
+       */}
+      <div
+        aria-hidden="true"
+        style={{
+          pointerEvents: "none",
+          flexShrink: 0,
+          minWidth: scaledPercent,
+          minHeight: scaledPercent,
+          visibility: "hidden",
+        }}
+      />
     </div>
   );
 }
