@@ -10,26 +10,11 @@ const COLOR_MAP = {
 
 function getColor(id) { return COLOR_MAP[id] || COLOR_MAP.blue; }
 
-/**
- * Layout structure:
- *
- * [scrollBox]  ← static window, overflow:auto, flex center
- *   [scaler]   ← transform:scale(zoomScale), transform-origin:center center
- *               width/height fixed at 100% of scrollBox baseline
- *     [iframe] ← fills scaler 100%
- *     [overlay]← fills scaler 100%, draws regions
- *
- * The scaler uses `transform` so its *layout* footprint stays the same,
- * but we compensate scrollable area by dynamically adjusting the scrollBox
- * min-width/min-height via inline style so scrollbars appear when zoomed in.
- */
 export default function BlueprintCanvas({ zoomScale = 1, activeAreaId, areas, pdfUrl, onRegionDrawn, onRegionDeleted }) {
-  const scrollBoxRef = useRef(null);
   const overlayRef = useRef(null);
   const [drawing, setDrawing] = useState(null);
   const [hoveredId, setHoveredId] = useState(null);
 
-  // Mouse position in unscaled coordinates
   function getPos(e) {
     const rect = overlayRef.current.getBoundingClientRect();
     return {
@@ -68,56 +53,34 @@ export default function BlueprintCanvas({ zoomScale = 1, activeAreaId, areas, pd
 
   const activeArea = activeAreaId ? areas.find(a => a.id === activeAreaId) : null;
 
-  // When zoomed > 1 we need the scrollBox to know the scaled size so scrollbars appear.
-  // We do this by setting a min-width/min-height on the scrollBox content via a ghost div.
-  // The scaler itself uses CSS transform (doesn't affect layout), so we add an explicit
-  // invisible spacer that occupies the scaled dimensions.
-  const scaledPercent = `${zoomScale * 100}%`;
-
   return (
     /*
-     * OUTER (scroll box) — static, never transforms.
-     * overflow:auto → scrollbars appear here when content is larger.
-     * flex + center → centers the PDF when zoom < 100%.
+     * PAI — janela estática, sem flex, overflow:auto gera scrollbars quando filho transbordar.
+     * Sem items-center / justify-center para não travar o scroll no topo.
      */
     <div
-      ref={scrollBoxRef}
-      style={{
-        width: "100%",
-        height: "100%",
-        overflow: "auto",
-        background: "#1a1a1a",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        position: "relative",
-      }}
+      className="w-full h-full bg-[#222] rounded-lg overflow-auto block relative"
     >
       {/*
-       * INNER (scaler) — this is the only element that receives transform:scale.
-       * It sits as a flex child so centering works when scale < 1.
-       * When scale > 1 the transform makes it visually larger but layout-wise
-       * it still occupies the original 100%×100%. To force the scrollBox to grow
-       * its scroll area, we use a transparent ghost div below.
+       * FILHO — recebe o transform:scale com transformOrigin:'top center'.
+       * mx-auto centraliza horizontalmente. O topo permanece fixo e o usuário
+       * rola verticalmente para baixo de forma natural.
        */}
       <div
+        className="mx-auto block"
         style={{
-          position: "absolute",
-          // Fill the natural (unscaled) space of the scroll box
           width: "100%",
           height: "100%",
           transform: `scale(${zoomScale})`,
-          transformOrigin: "center center",
+          transformOrigin: "top center",
           transition: "transform 0.1s ease-out",
-          flexShrink: 0,
         }}
       >
-        {/* PDF iframe */}
+        {/* iframe do PDF */}
         <iframe
           src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
           style={{
-            position: "absolute",
-            inset: 0,
+            display: "block",
             width: "100%",
             height: "100%",
             border: "none",
@@ -126,7 +89,7 @@ export default function BlueprintCanvas({ zoomScale = 1, activeAreaId, areas, pd
           title="PDF Viewer"
         />
 
-        {/* Drawing overlay */}
+        {/* Overlay de desenho */}
         <div
           ref={overlayRef}
           style={{
@@ -139,7 +102,7 @@ export default function BlueprintCanvas({ zoomScale = 1, activeAreaId, areas, pd
           onMouseUp={onMouseUp}
           onMouseLeave={onMouseUp}
         >
-          {/* Existing regions */}
+          {/* Regiões existentes */}
           {areas.filter(a => a.rect).map(area => {
             const c = getColor(area.color);
             const r = area.rect;
@@ -188,7 +151,7 @@ export default function BlueprintCanvas({ zoomScale = 1, activeAreaId, areas, pd
             );
           })}
 
-          {/* In-progress rect */}
+          {/* Retângulo em progresso */}
           {inProgress && activeArea && (() => {
             const c = getColor(activeArea.color);
             return (
@@ -209,23 +172,6 @@ export default function BlueprintCanvas({ zoomScale = 1, activeAreaId, areas, pd
           })()}
         </div>
       </div>
-
-      {/*
-       * GHOST spacer — invisible, not interactive.
-       * Its physical size equals the scaled dimensions so the scrollBox
-       * scroll area expands and scrollbars appear when zoom > 1.
-       * Uses min-width/min-height so it doesn't shrink the scrollBox when zoom < 1.
-       */}
-      <div
-        aria-hidden="true"
-        style={{
-          pointerEvents: "none",
-          flexShrink: 0,
-          minWidth: scaledPercent,
-          minHeight: scaledPercent,
-          visibility: "hidden",
-        }}
-      />
     </div>
   );
 }
