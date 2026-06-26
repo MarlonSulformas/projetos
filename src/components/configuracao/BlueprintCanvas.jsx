@@ -50,6 +50,7 @@ export default function BlueprintCanvas({
 }) {
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
+  const pdfUrlRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
   const [renderTick, setRenderTick] = useState(0);
 
@@ -61,6 +62,9 @@ export default function BlueprintCanvas({
 
   const [hoveredId, setHoveredId] = useState(null);
 
+  // Keep pdfUrl in a ref so ResizeObserver can access latest value
+  useEffect(() => { pdfUrlRef.current = pdfUrl; }, [pdfUrl]);
+
   // ── PDF rendering ──────────────────────────────────────────────
   useEffect(() => {
     if (!pdfUrl || !containerRef.current) return;
@@ -69,8 +73,17 @@ export default function BlueprintCanvas({
     async function render() {
       const container = containerRef.current;
       if (!container) return;
-      const containerW = container.clientWidth;
-      const containerH = container.clientHeight;
+
+      // Wait for container to have real dimensions (up to 20 attempts)
+      let containerW = container.clientWidth;
+      let containerH = container.clientHeight;
+      let attempts = 0;
+      while ((!containerW || !containerH) && attempts < 20) {
+        await new Promise(r => setTimeout(r, 50));
+        containerW = container.clientWidth;
+        containerH = container.clientHeight;
+        attempts++;
+      }
       if (!containerW || !containerH) return;
 
       const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
@@ -83,7 +96,7 @@ export default function BlueprintCanvas({
       const scaleY = containerH / viewport.height;
       const scale = Math.min(scaleX, scaleY);
 
-      const dpr = window.devicePixelRatio || 2;
+      const dpr = window.devicePixelRatio || 1;
       const renderScale = scale * dpr;
       const scaledViewport = page.getViewport({ scale: renderScale });
       const canvasW = Math.floor(scale * viewport.width);
@@ -106,12 +119,12 @@ export default function BlueprintCanvas({
     return () => { cancelled = true; };
   }, [pdfUrl, renderTick]);
 
-  // Re-render when container gets actual dimensions
+  // Re-render when container resizes and we have a PDF loaded
   useEffect(() => {
     if (!containerRef.current) return;
     const obs = new ResizeObserver((entries) => {
       const entry = entries[0];
-      if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+      if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0 && pdfUrlRef.current) {
         setRenderTick(t => t + 1);
       }
     });
