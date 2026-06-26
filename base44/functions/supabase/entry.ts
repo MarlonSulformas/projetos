@@ -4,7 +4,8 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
 
 async function supabaseRequest(path, method = "GET", body = null) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+  const baseUrl = (SUPABASE_URL || "").replace(/\/$/, "");
+  const res = await fetch(`${baseUrl}/rest/v1/${path}`, {
     method,
     headers: {
       "apikey": SUPABASE_ANON_KEY,
