@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
 import { motion } from "framer-motion";
+import { db } from "@/lib/supabaseClient";
 import ProjetistasList from "@/components/projetistas/ProjetistasList";
 import ProjetistaDetail from "@/components/projetistas/ProjetistaDetail";
 import ProjetistaModal from "@/components/projetistas/ProjetistaModal";
@@ -9,11 +9,37 @@ import ConfirmDialog from "@/components/projetistas/ConfirmDialog";
 
 const PRODUTO_STATUS_CYCLE = { "Ativo": "Em revisão", "Em revisão": "Inativo", "Inativo": "Ativo" };
 
+// Map Supabase schema → internal field names used by existing UI components
+function mapProjetista(p) {
+  return {
+    id: p.id,
+    nome: p.nome_razao_social,
+    razao_social: p.nome_razao_social,
+    cnpj: p.cnpj,
+    email: p.email_contato,
+    especialidade: p.especialidade,
+    ativo: p.status === "Ativo",
+    status: p.status,
+    created_at: p.created_at,
+  };
+}
+
+function mapProduto(p) {
+  return {
+    id: p.id,
+    projetista_id: p.id_projetista,
+    nome: p.nome_produto,
+    descricao: p.descricao_modelo,
+    status: p.status,
+    created_at: p.created_at,
+  };
+}
+
 const SEED_PROJETISTAS = [
-  { nome: "Estruturas Apex", razao_social: "Estruturas Apex Engenharia Ltda.", cnpj: "12.345.678/0001-90", email: "contato@estruturasapex.com.br", especialidade: "Vigas e Lajes", ativo: true },
-  { nome: "Engenharia Delta", razao_social: "Engenharia Delta S.A.", cnpj: "98.765.432/0001-11", email: "contato@deltaeng.com.br", especialidade: "Pilares e Fundações", ativo: true },
-  { nome: "Concretar Estrutural", razao_social: "Concretar Estrutural Eireli", cnpj: "11.222.333/0001-44", email: "engenharia@concretar.com.br", especialidade: "Painéis e Fachadas", ativo: true },
-  { nome: "Prémold Tech", razao_social: "Prémold Tech Sistemas Ltda.", cnpj: "67.890.123/0001-55", email: "suporte@premoldtech.com.br", especialidade: "Sistemas Pré-Moldados", ativo: true },
+  { nome_razao_social: "Estruturas Apex Engenharia Ltda.", cnpj: "12.345.678/0001-90", email_contato: "contato@estruturasapex.com.br", especialidade: "Vigas e Lajes", status: "Ativo" },
+  { nome_razao_social: "Engenharia Delta S.A.", cnpj: "98.765.432/0001-11", email_contato: "contato@deltaeng.com.br", especialidade: "Pilares e Fundações", status: "Ativo" },
+  { nome_razao_social: "Concretar Estrutural Eireli", cnpj: "11.222.333/0001-44", email_contato: "engenharia@concretar.com.br", especialidade: "Painéis e Fachadas", status: "Ativo" },
+  { nome_razao_social: "Prémold Tech Sistemas Ltda.", cnpj: "67.890.123/0001-55", email_contato: "suporte@premoldtech.com.br", especialidade: "Sistemas Pré-Moldados", status: "Ativo" },
 ];
 
 export default function Projetistas() {
@@ -21,63 +47,68 @@ export default function Projetistas() {
   const [produtos, setProdutos] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Modal state
   const [projetistaModal, setProjetistaModal] = useState({ open: false, data: null });
   const [produtoModal, setProdutoModal] = useState({ open: false, data: null });
   const [confirmDialog, setConfirmDialog] = useState({ open: false, onConfirm: null, description: "" });
 
-  // ── Load data & seed if empty ──────────────────────────────────────────────
-  useEffect(() => {
-    loadAll();
-  }, []);
+  useEffect(() => { loadAll(); }, []);
 
   async function loadAll() {
     setLoading(true);
-    let ps = await base44.entities.Projetista.list();
-    if (ps.length === 0) {
-      for (const p of SEED_PROJETISTAS) {
-        await base44.entities.Projetista.create(p);
+    setError(null);
+    try {
+      let raw = await db.listProjetistas();
+      if (!raw || raw.length === 0) {
+        for (const p of SEED_PROJETISTAS) await db.createProjetista(p);
+        raw = await db.listProjetistas();
       }
-      ps = await base44.entities.Projetista.list();
-    }
-    setProjetistas(ps);
-    if (ps.length > 0 && !selectedId) setSelectedId(ps[0].id);
+      const ps = (raw || []).map(mapProjetista);
+      setProjetistas(ps);
+      if (ps.length > 0) setSelectedId(ps[0].id);
 
-    const prods = await base44.entities.ProdutoEstrutural.list();
-    if (prods.length === 0 && ps.length >= 4) {
-      const seedProdutos = [
-        { projetista_id: ps[0].id, nome: "Vigas Pré-Moldadas", descricao: "Layout Padrão V1", status: "Ativo" },
-        { projetista_id: ps[0].id, nome: "Pilares Industriais", descricao: "Modelo Técnico P3", status: "Em revisão" },
-        { projetista_id: ps[1].id, nome: "Fundação Profunda", descricao: "Sistema FP-10", status: "Ativo" },
-        { projetista_id: ps[2].id, nome: "Painéis de Fachada", descricao: "Módulo Externo PF-7", status: "Ativo" },
-        { projetista_id: ps[2].id, nome: "Escadas Pré-Moldadas", descricao: "Série Residencial ES3", status: "Ativo" },
-        { projetista_id: ps[3].id, nome: "Lajes Nervuradas", descricao: "Série Industrial LN-5", status: "Ativo" },
-      ];
-      for (const prod of seedProdutos) {
-        await base44.entities.ProdutoEstrutural.create(prod);
+      let rawProds = await db.listProdutos();
+      if (!rawProds || rawProds.length === 0) {
+        const seeds = [
+          { id_projetista: ps[0]?.id, nome_produto: "Vigas Pré-Moldadas", descricao_modelo: "Layout Padrão V1", status: "Ativo" },
+          { id_projetista: ps[0]?.id, nome_produto: "Pilares Industriais", descricao_modelo: "Modelo Técnico P3", status: "Em revisão" },
+          { id_projetista: ps[1]?.id, nome_produto: "Fundação Profunda", descricao_modelo: "Sistema FP-10", status: "Ativo" },
+          { id_projetista: ps[2]?.id, nome_produto: "Painéis de Fachada", descricao_modelo: "Módulo Externo PF-7", status: "Ativo" },
+          { id_projetista: ps[3]?.id, nome_produto: "Lajes Nervuradas", descricao_modelo: "Série Industrial LN-5", status: "Ativo" },
+        ].filter(s => s.id_projetista);
+        for (const s of seeds) await db.createProduto(s);
+        rawProds = await db.listProdutos();
       }
-      setProdutos(await base44.entities.ProdutoEstrutural.list());
-    } else {
-      setProdutos(prods);
+      setProdutos((rawProds || []).map(mapProduto));
+    } catch (e) {
+      setError(e.message);
     }
     setLoading(false);
   }
 
   async function reloadProjetistas() {
-    setProjetistas(await base44.entities.Projetista.list());
+    const raw = await db.listProjetistas();
+    setProjetistas((raw || []).map(mapProjetista));
   }
   async function reloadProdutos() {
-    setProdutos(await base44.entities.ProdutoEstrutural.list());
+    const raw = await db.listProdutos();
+    setProdutos((raw || []).map(mapProduto));
   }
 
-  // ── Projetista CRUD ────────────────────────────────────────────────────────
   async function saveProjetista(form) {
+    const payload = {
+      nome_razao_social: form.razao_social || form.nome,
+      cnpj: form.cnpj,
+      email_contato: form.email,
+      especialidade: form.especialidade,
+      status: form.ativo !== false ? "Ativo" : "Inativo",
+    };
     if (projetistaModal.data) {
-      await base44.entities.Projetista.update(projetistaModal.data.id, form);
+      await db.updateProjetista(projetistaModal.data.id, payload);
     } else {
-      const created = await base44.entities.Projetista.create({ ...form, ativo: true });
-      setSelectedId(created.id);
+      const created = await db.createProjetista(payload);
+      if (created?.id) setSelectedId(created.id);
     }
     reloadProjetistas();
   }
@@ -87,13 +118,11 @@ export default function Projetistas() {
       open: true,
       description: `Tem certeza que deseja excluir "${p.nome}"? Os produtos vinculados serão removidos.`,
       onConfirm: async () => {
-        await base44.entities.Projetista.delete(p.id);
-        // delete linked produtos
-        const linked = produtos.filter((pr) => pr.projetista_id === p.id);
-        for (const pr of linked) await base44.entities.ProdutoEstrutural.delete(pr.id);
-        const updated = await base44.entities.Projetista.list();
-        setProjetistas(updated);
-        if (selectedId === p.id) setSelectedId(updated[0]?.id || null);
+        await db.deleteProjetista(p.id); // CASCADE deletes produtos + gabaritos
+        const updated = await db.listProjetistas();
+        const ps = (updated || []).map(mapProjetista);
+        setProjetistas(ps);
+        if (selectedId === p.id) setSelectedId(ps[0]?.id || null);
         reloadProdutos();
         setConfirmDialog({ open: false, onConfirm: null, description: "" });
       },
@@ -101,16 +130,21 @@ export default function Projetistas() {
   }
 
   async function toggleProjetistaStatus(p) {
-    await base44.entities.Projetista.update(p.id, { ativo: !p.ativo });
+    await db.updateProjetista(p.id, { status: p.ativo ? "Inativo" : "Ativo" });
     reloadProjetistas();
   }
 
-  // ── Produto CRUD ───────────────────────────────────────────────────────────
   async function saveProduto(form) {
+    const payload = {
+      id_projetista: selectedId,
+      nome_produto: form.nome,
+      descricao_modelo: form.descricao,
+      status: form.status || "Ativo",
+    };
     if (produtoModal.data) {
-      await base44.entities.ProdutoEstrutural.update(produtoModal.data.id, form);
+      await db.updateProduto(produtoModal.data.id, payload);
     } else {
-      await base44.entities.ProdutoEstrutural.create({ ...form, projetista_id: selectedId, status: "Ativo" });
+      await db.createProduto(payload);
     }
     reloadProdutos();
   }
@@ -120,7 +154,7 @@ export default function Projetistas() {
       open: true,
       description: `Tem certeza que deseja excluir o produto "${prod.nome}"?`,
       onConfirm: async () => {
-        await base44.entities.ProdutoEstrutural.delete(prod.id);
+        await db.deleteProduto(prod.id);
         reloadProdutos();
         setConfirmDialog({ open: false, onConfirm: null, description: "" });
       },
@@ -129,11 +163,10 @@ export default function Projetistas() {
 
   async function toggleProdutoStatus(prod) {
     const next = PRODUTO_STATUS_CYCLE[prod.status] || "Ativo";
-    await base44.entities.ProdutoEstrutural.update(prod.id, { status: next });
+    await db.updateProduto(prod.id, { status: next });
     reloadProdutos();
   }
 
-  // ── Derived ────────────────────────────────────────────────────────────────
   const selectedProjetista = projetistas.find((p) => p.id === selectedId);
   const selectedProdutos = produtos.filter((pr) => pr.projetista_id === selectedId);
 
@@ -142,7 +175,22 @@ export default function Projetistas() {
       <div className="flex-1 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-7 h-7 border-[3px] border-[#E5E5E8] border-t-[#3B82F6] rounded-full animate-spin" />
-          <span className="text-xs text-[#6B6B72]">Carregando dados...</span>
+          <span className="text-xs text-[#6B6B72]">Carregando dados do Supabase...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-8">
+        <div className="max-w-md text-center">
+          <p className="text-sm font-semibold text-red-600 mb-2">Erro ao conectar ao Supabase</p>
+          <p className="text-xs text-[#6B6B72] mb-4">{error}</p>
+          <p className="text-xs text-[#9CA3AF]">Verifique se as tabelas foram criadas no Supabase SQL Editor e se as políticas RLS permitem acesso.</p>
+          <button onClick={loadAll} className="mt-4 px-4 py-2 bg-[#3B82F6] text-white text-xs rounded-lg hover:bg-[#2563EB] transition-colors">
+            Tentar novamente
+          </button>
         </div>
       </div>
     );
@@ -150,13 +198,11 @@ export default function Projetistas() {
 
   return (
     <div className="flex-1 flex flex-col min-h-0 p-6 gap-6 overflow-auto">
-      {/* Header */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
         <h1 className="text-xl font-semibold text-[#0F0F0F]">Projetistas e Produtos</h1>
         <p className="text-sm text-[#6B6B72] mt-0.5">Gerencie os projetistas homologados e os produtos estruturais vinculados a cada um.</p>
       </motion.div>
 
-      {/* Main layout */}
       <div className="flex gap-6 items-start">
         <ProjetistasList
           projetistas={projetistas}
@@ -167,7 +213,6 @@ export default function Projetistas() {
           onDelete={confirmDeleteProjetista}
           onToggleStatus={toggleProjetistaStatus}
         />
-
         {selectedProjetista ? (
           <ProjetistaDetail
             projetista={selectedProjetista}
@@ -187,7 +232,6 @@ export default function Projetistas() {
         )}
       </div>
 
-      {/* Modals */}
       <ProjetistaModal
         open={projetistaModal.open}
         onClose={() => setProjetistaModal({ open: false, data: null })}

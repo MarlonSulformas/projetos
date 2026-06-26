@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { base44 } from "@/api/base44Client";
+import { db } from "@/lib/supabaseClient";
 import { Plus, ArrowRight, Target, CheckCircle2, Clock, Trash2, Upload, ZoomIn, ZoomOut, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import BlueprintCanvas from "@/components/configuracao/BlueprintCanvas";
@@ -161,30 +161,45 @@ export default function Configuracao() {
 
   useEffect(() => {
     async function load() {
-      const records = await base44.entities.GabaritoEspacial.filter({
-        projetista_id: projetista,
-        tipo_documento: caderno,
-      });
-      setAreas(records.map(r => ({
-        id: r.id,
-        recordId: r.id,
-        name: r.nome_regiao,
-        color: r.color || "blue",
-        rect: r.largura ? { x: r.coordenada_x, y: r.coordenada_y, width: r.largura, height: r.altura } : null,
-      })));
+      // Find the projetista UUID by name, then load gabaritos
+      try {
+        const allProjetistas = await db.listProjetistas();
+        const found = (allProjetistas || []).find(p => p.nome_razao_social === projetista);
+        const pid = found?.id || projetista;
+        const records = await db.listGabaritos(pid);
+        setAreas((records || [])
+          .filter(r => !caderno || r.tipo_documento === caderno || !r.tipo_documento)
+          .map(r => ({
+            id: r.id,
+            recordId: r.id,
+            projetistaId: pid,
+            name: r.nome_regiao,
+            color: r.cor_marcador || "blue",
+            rect: r.largura > 0 ? { x: r.coordenada_x, y: r.coordenada_y, width: r.largura, height: r.altura } : null,
+          })));
+      } catch {
+        setAreas([]);
+      }
       setActiveAreaId(null);
     }
     load();
   }, [projetista, caderno]);
 
+  async function resolveProjetistaId() {
+    const all = await db.listProjetistas();
+    const found = (all || []).find(p => p.nome_razao_social === projetista);
+    return found?.id || null;
+  }
+
   async function handleCreateArea({ name, color }) {
     setShowModal(false);
     setSaving(true);
-    const created = await base44.entities.GabaritoEspacial.create({
-      projetista_id: projetista,
+    const pid = await resolveProjetistaId();
+    const created = await db.createGabarito({
+      id_projetista: pid,
       tipo_documento: caderno,
       nome_regiao: name,
-      color,
+      cor_marcador: color,
       coordenada_x: 0,
       coordenada_y: 0,
       largura: 0,
@@ -193,6 +208,7 @@ export default function Configuracao() {
     setAreas(prev => [...prev, {
       id: created.id,
       recordId: created.id,
+      projetistaId: pid,
       name,
       color,
       rect: null,
@@ -204,7 +220,7 @@ export default function Configuracao() {
     const area = areas.find(a => a.id === areaId);
     if (!area) return;
     setSaving(true);
-    await base44.entities.GabaritoEspacial.update(area.recordId, {
+    await db.updateGabarito(area.recordId, {
       coordenada_x: Math.round(rect.x),
       coordenada_y: Math.round(rect.y),
       largura: Math.round(rect.width),
@@ -218,7 +234,7 @@ export default function Configuracao() {
   async function handleRegionDeleted(areaId) {
     const area = areas.find(a => a.id === areaId);
     if (!area) return;
-    await base44.entities.GabaritoEspacial.update(area.recordId, {
+    await db.updateGabarito(area.recordId, {
       coordenada_x: 0, coordenada_y: 0, largura: 0, altura: 0,
     });
     setAreas(prev => prev.map(a => a.id === areaId ? { ...a, rect: null } : a));
@@ -227,7 +243,7 @@ export default function Configuracao() {
   async function handleDeleteArea(areaId) {
     const area = areas.find(a => a.id === areaId);
     if (!area) return;
-    await base44.entities.GabaritoEspacial.delete(area.recordId);
+    await db.deleteGabarito(area.recordId);
     setAreas(prev => prev.filter(a => a.id !== areaId));
     if (activeAreaId === areaId) setActiveAreaId(null);
   }
