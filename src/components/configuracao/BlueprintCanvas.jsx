@@ -10,13 +10,40 @@ const COLOR_MAP = {
 
 function getColor(id) { return COLOR_MAP[id] || COLOR_MAP.blue; }
 
-// zoomScale: decimal (1.0 = 100%, 1.5 = 150%, etc.)
+/**
+ * zoomScale: decimal (1.0 = 100%, 1.5 = 150%, etc.)
+ *
+ * Strategy: the outer grey div is a fixed-size scroll container (overflow:auto).
+ * The inner "page" div has its size set to (naturalW * zoomScale) x (naturalH * zoomScale)
+ * so it physically expands in the layout and scrollbars appear naturally.
+ * The iframe fills that inner div 100% — no CSS transform is applied anywhere.
+ */
 export default function BlueprintCanvas({ zoomScale = 1, activeAreaId, areas, pdfUrl, onRegionDrawn, onRegionDeleted }) {
-  const overlayRef = useRef(null);
+  const scrollRef = useRef(null);        // outer grey container
+  const overlayRef = useRef(null);       // drawing overlay (same size as inner page)
+  const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
   const [drawing, setDrawing] = useState(null);
   const [hoveredId, setHoveredId] = useState(null);
 
-  // Get mouse position relative to the unscaled overlay
+  // Measure the outer container once to get the "100%" baseline
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    const { width, height } = scrollRef.current.getBoundingClientRect();
+    setNaturalSize({ w: width, h: height });
+
+    const obs = new ResizeObserver(entries => {
+      const { width, height } = entries[0].contentRect;
+      // Only update natural size when zoom is 1 (i.e. the true container size)
+      setNaturalSize({ w: width, h: height });
+    });
+    obs.observe(scrollRef.current);
+    return () => obs.disconnect();
+  }, []);
+
+  const pageW = naturalSize.w * zoomScale;
+  const pageH = naturalSize.h * zoomScale;
+
+  // Mouse coords relative to the unscaled coordinate space of the page
   function getPos(e) {
     const rect = overlayRef.current.getBoundingClientRect();
     return {
@@ -56,119 +83,134 @@ export default function BlueprintCanvas({ zoomScale = 1, activeAreaId, areas, pd
   const activeArea = activeAreaId ? areas.find(a => a.id === activeAreaId) : null;
 
   return (
-    // Outer: scroll container, centers content when smaller than viewport
+    /*
+     * OUTER grey container — static, fills available space, never transforms.
+     * overflow:auto → scrollbars appear only here when inner page is larger.
+     * flex + center → centers the page when it's smaller than the container.
+     */
     <div
-      className="w-full h-full overflow-auto bg-[#F0F2F5] flex items-center justify-center"
+      ref={scrollRef}
+      style={{
+        width: "100%",
+        height: "100%",
+        overflow: "auto",
+        background: "#F0F2F5",
+        display: "flex",
+        alignItems: naturalSize.h * zoomScale <= naturalSize.h ? "center" : "flex-start",
+        justifyContent: naturalSize.w * zoomScale <= naturalSize.w ? "center" : "flex-start",
+      }}
     >
-      {/* Scaled wrapper — grows to hold the zoomed content so scrollbars appear */}
-      <div
-        style={{
-          transformOrigin: "top center",
-          transform: `scale(${zoomScale})`,
-          // Make the scaled element take the right amount of real space
-          width: "100%",
-          height: "100%",
-          flexShrink: 0,
-          position: "relative",
-        }}
-      >
-        {/* PDF iframe — no zoom param, we control it via CSS scale */}
-        <iframe
-          src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            border: "none",
-            pointerEvents: activeAreaId ? "none" : "auto",
-          }}
-          title="PDF Viewer"
-        />
-
-        {/* Drawing overlay */}
+      {/*
+       * INNER page — its physical size changes with zoom.
+       * No transform — the element truly expands/contracts in the DOM.
+       */}
+      {naturalSize.w > 0 && (
         <div
-          ref={overlayRef}
           style={{
-            position: "absolute",
-            inset: 0,
-            cursor: activeAreaId ? "crosshair" : "default",
+            position: "relative",
+            width: `${pageW}px`,
+            height: `${pageH}px`,
+            flexShrink: 0,
           }}
-          onMouseDown={onMouseDown}
-          onMouseMove={onMouseMove}
-          onMouseUp={onMouseUp}
-          onMouseLeave={onMouseUp}
         >
-          {/* Existing regions */}
-          {areas.filter(a => a.rect).map(area => {
-            const c = getColor(area.color);
-            const r = area.rect;
-            const isHovered = hoveredId === area.id;
-            return (
-              <div
-                key={area.id}
-                style={{
-                  position: "absolute",
-                  left: `${r.x}px`,
-                  top: `${r.y}px`,
-                  width: `${r.width}px`,
-                  height: `${r.height}px`,
-                  border: `2px dashed ${c.border}`,
-                  backgroundColor: c.bg,
-                  borderRadius: "3px",
-                  pointerEvents: activeAreaId ? "none" : "auto",
-                }}
-                onMouseEnter={() => setHoveredId(area.id)}
-                onMouseLeave={() => setHoveredId(null)}
-              >
-                <span style={{
-                  position: "absolute", top: "4px", left: "6px",
-                  fontSize: "10px", fontWeight: "600",
-                  color: c.tag, backgroundColor: c.tagBg,
-                  padding: "2px 6px", borderRadius: "4px",
-                  whiteSpace: "nowrap",
-                }}>
-                  {area.name}
-                </span>
-                {isHovered && (
-                  <button
-                    onClick={e => { e.stopPropagation(); onRegionDeleted(area.id); }}
-                    style={{
-                      position: "absolute", top: "4px", right: "4px",
-                      width: "22px", height: "22px",
-                      background: "#EF4444", borderRadius: "4px",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      cursor: "pointer", border: "none",
-                    }}
-                  >
-                    <Trash2 style={{ width: "12px", height: "12px", color: "white" }} />
-                  </button>
-                )}
-              </div>
-            );
-          })}
+          {/* PDF iframe fills the scaled page exactly */}
+          <iframe
+            src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              border: "none",
+              pointerEvents: activeAreaId ? "none" : "auto",
+            }}
+            title="PDF Viewer"
+          />
 
-          {/* In-progress rect */}
-          {inProgress && activeArea && (() => {
-            const c = getColor(activeArea.color);
-            return (
-              <div
-                style={{
-                  position: "absolute",
-                  left: `${inProgress.x}px`,
-                  top: `${inProgress.y}px`,
-                  width: `${inProgress.width}px`,
-                  height: `${inProgress.height}px`,
-                  border: `2px dashed ${c.border}`,
-                  backgroundColor: c.bg,
-                  borderRadius: "3px",
-                  pointerEvents: "none",
-                }}
-              />
-            );
-          })()}
+          {/* Drawing overlay — same size as inner page */}
+          <div
+            ref={overlayRef}
+            style={{
+              position: "absolute",
+              inset: 0,
+              cursor: activeAreaId ? "crosshair" : "default",
+            }}
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={onMouseUp}
+            onMouseLeave={onMouseUp}
+          >
+            {/* Existing regions — coords are in unscaled space, scaled via CSS */}
+            {areas.filter(a => a.rect).map(area => {
+              const c = getColor(area.color);
+              const r = area.rect;
+              const isHovered = hoveredId === area.id;
+              return (
+                <div
+                  key={area.id}
+                  style={{
+                    position: "absolute",
+                    left: `${r.x * zoomScale}px`,
+                    top: `${r.y * zoomScale}px`,
+                    width: `${r.width * zoomScale}px`,
+                    height: `${r.height * zoomScale}px`,
+                    border: `2px dashed ${c.border}`,
+                    backgroundColor: c.bg,
+                    borderRadius: "3px",
+                    pointerEvents: activeAreaId ? "none" : "auto",
+                  }}
+                  onMouseEnter={() => setHoveredId(area.id)}
+                  onMouseLeave={() => setHoveredId(null)}
+                >
+                  <span style={{
+                    position: "absolute", top: "4px", left: "6px",
+                    fontSize: "10px", fontWeight: "600",
+                    color: c.tag, backgroundColor: c.tagBg,
+                    padding: "2px 6px", borderRadius: "4px",
+                    whiteSpace: "nowrap",
+                  }}>
+                    {area.name}
+                  </span>
+                  {isHovered && (
+                    <button
+                      onClick={e => { e.stopPropagation(); onRegionDeleted(area.id); }}
+                      style={{
+                        position: "absolute", top: "4px", right: "4px",
+                        width: "22px", height: "22px",
+                        background: "#EF4444", borderRadius: "4px",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        cursor: "pointer", border: "none",
+                      }}
+                    >
+                      <Trash2 style={{ width: "12px", height: "12px", color: "white" }} />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* In-progress rect — scaled coords */}
+            {inProgress && activeArea && (() => {
+              const c = getColor(activeArea.color);
+              return (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: `${inProgress.x * zoomScale}px`,
+                    top: `${inProgress.y * zoomScale}px`,
+                    width: `${inProgress.width * zoomScale}px`,
+                    height: `${inProgress.height * zoomScale}px`,
+                    border: `2px dashed ${c.border}`,
+                    backgroundColor: c.bg,
+                    borderRadius: "3px",
+                    pointerEvents: "none",
+                  }}
+                />
+              );
+            })()}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
