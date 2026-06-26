@@ -8,10 +8,15 @@ Deno.serve(async (req) => {
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
-    const baseUrl = (SUPABASE_URL || "").replace(/\/$/, "");
+    // Strip trailing slashes and any accidental /rest/v1 suffix from the secret value
+    const baseUrl = (SUPABASE_URL || "")
+      .replace(/\/rest\/v1.*$/, "")
+      .replace(/\/$/, "");
 
     async function supabaseRequest(path, method = "GET", body = null) {
-      const res = await fetch(`${baseUrl}/rest/v1/${path}`, {
+      const url = `${baseUrl}/rest/v1/${path}`;
+      console.log("supabase request:", method, url);
+      const res = await fetch(url, {
         method,
         headers: {
           "apikey": SUPABASE_ANON_KEY,
@@ -29,8 +34,6 @@ Deno.serve(async (req) => {
     }
 
     const { action, table, data, filters } = await req.json();
-    console.log("DEBUG baseUrl:", baseUrl);
-    console.log("DEBUG full path:", `${baseUrl}/rest/v1/${table}`);
 
     if (action === "select") {
       const params = new URLSearchParams({ select: "*" });
