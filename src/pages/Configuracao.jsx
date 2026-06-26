@@ -1,72 +1,29 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
+import { base44 } from "@/api/base44Client";
 import {
   ChevronDown, Upload, ZoomIn, ZoomOut, Crosshair,
-  CheckCircle2, Circle, ArrowRight, Map
+  CheckCircle2, Circle, ArrowRight, Target
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import BlueprintCanvas from "@/components/configuracao/BlueprintCanvas";
 
-const PROJETISTAS = ["Estruturas Apex", "Engenharia Delta", "Concretar Estrutural", "Prémold Tech"];
+const PROJETISTAS_LIST = ["Estruturas Apex", "Engenharia Delta", "Concretar Estrutural", "Prémold Tech"];
 const CADERNOS = ["Caderno de Pilares", "Caderno de Vigas", "Caderno de Lajes", "Caderno de Painéis"];
 
-const CAPTURE_REGIONS = [
-  {
-    id: 1,
-    label: "Vista Frontal dos Painéis",
-    description: "Desenhos coloridos com sarrafos e painéis",
-    color: "blue",
-    mapped: true,
-  },
-  {
-    id: 2,
-    label: "Detalhe de Seção Transversal",
-    description: "Espessura e quantidade de sarrafos por extremidade",
-    color: "green",
-    mapped: true,
-  },
-  {
-    id: 3,
-    label: "Tabela de Resumo / Quantitativos",
-    description: "Totais e quantitativos da folha (se houver)",
-    color: "violet",
-    mapped: false,
-  },
-  {
-    id: 4,
-    label: "Carimbo de Identificação",
-    description: "Nome da obra, pavimento e número do pilar",
-    color: "slate",
-    mapped: true,
-  },
+const REGION_DEFINITIONS = [
+  { id: 1, label: "Vista Frontal dos Painéis", description: "Desenhos coloridos com sarrafos e painéis", color: "blue" },
+  { id: 2, label: "Detalhe de Seção Transversal", description: "Espessura e quantidade de sarrafos por extremidade", color: "green" },
+  { id: 3, label: "Tabela de Resumo / Quantitativos", description: "Totais e quantitativos da folha (se houver)", color: "violet" },
+  { id: 4, label: "Carimbo de Identificação", description: "Nome da obra, pavimento e número do pilar", color: "slate" },
 ];
 
-const REGION_STYLES = {
-  blue:   { pill: "bg-blue-50 text-blue-600 border-blue-200",   rect: "border-blue-500 bg-blue-400/15",   tag: "text-blue-700",   dot: "bg-blue-500" },
-  green:  { pill: "bg-green-50 text-green-600 border-green-200", rect: "border-green-500 bg-green-400/15", tag: "text-green-700",  dot: "bg-green-500" },
-  violet: { pill: "bg-violet-50 text-violet-600 border-violet-200", rect: "border-violet-500 bg-violet-400/15", tag: "text-violet-700", dot: "bg-violet-500" },
-  slate:  { pill: "bg-slate-100 text-slate-600 border-slate-200", rect: "border-slate-400 bg-slate-400/15", tag: "text-slate-600",  dot: "bg-slate-400" },
+const COLOR_STYLES = {
+  blue:   { active: "border-blue-500 bg-blue-50",   badge: "bg-blue-100 text-blue-700 border-blue-200",   btn: "bg-blue-500 hover:bg-blue-600 text-white" },
+  green:  { active: "border-green-500 bg-green-50",  badge: "bg-green-100 text-green-700 border-green-200", btn: "bg-green-500 hover:bg-green-600 text-white" },
+  violet: { active: "border-violet-500 bg-violet-50", badge: "bg-violet-100 text-violet-700 border-violet-200", btn: "bg-violet-500 hover:bg-violet-600 text-white" },
+  slate:  { active: "border-slate-400 bg-slate-50",  badge: "bg-slate-100 text-slate-600 border-slate-200",  btn: "bg-slate-500 hover:bg-slate-600 text-white" },
 };
-
-const DEMO_AREAS = [
-  {
-    id: 1, color: "blue",
-    label: "Região 1: Vista Frontal",
-    style: { top: "17%", left: "3%", width: "86%", height: "44%" },
-    dashed: true,
-  },
-  {
-    id: 2, color: "green",
-    label: "Região 2: Seção Transversal",
-    style: { top: "63%", left: "3%", width: "55%", height: "16%" },
-    dashed: true,
-  },
-  {
-    id: 4, color: "slate",
-    label: "Região 4: Carimbo",
-    style: { bottom: "3%", right: "2%", width: "96%", height: "12%" },
-    dashed: false,
-  },
-];
 
 function SelectField({ value, onChange, options, placeholder }) {
   return (
@@ -84,144 +41,45 @@ function SelectField({ value, onChange, options, placeholder }) {
   );
 }
 
-function RegionRow({ region, index, active, onMap }) {
-  const s = REGION_STYLES[region.color];
+function RegionCard({ region, active, onDemarcar }) {
+  const s = COLOR_STYLES[region.color];
   return (
-    <motion.div
-      initial={{ opacity: 0, x: -8 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.25, delay: index * 0.07 }}
-      className={`flex items-start gap-3 p-3.5 rounded-xl border transition-all duration-150 ${
-        active
-          ? "border-[#3B82F6] bg-[#EFF6FF]"
-          : "border-[#E5E5E8] bg-white hover:border-[#D4D4D8]"
+    <div
+      className={`flex items-center gap-3 px-3 py-3 rounded-xl border transition-all duration-150 ${
+        active ? s.active : "border-[#E5E5E8] bg-white hover:border-[#D4D4D8]"
       }`}
     >
-      {/* Number badge */}
-      <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${s.pill} border`}>
-        <span className="text-[11px] font-bold">{region.id}</span>
+      {/* Number */}
+      <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 text-[11px] font-bold border ${s.badge}`}>
+        {region.id}
       </div>
 
-      {/* Text */}
-      <div className="flex-1 min-w-0">
-        <p className="text-[13px] font-semibold text-[#1F1F24] leading-tight">{region.label}</p>
-        <p className="text-[11px] text-[#6B6B72] mt-0.5 leading-snug">{region.description}</p>
-      </div>
+      {/* Label */}
+      <p className="flex-1 text-[13px] font-medium text-[#1F1F24] leading-tight truncate">{region.label}</p>
 
-      {/* Status + action */}
-      <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-        {region.mapped ? (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-green-600">
-            <CheckCircle2 className="w-3 h-3" /> Demarcado
-          </span>
-        ) : (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-[#A1A1AA]">
-            <Circle className="w-3 h-3" /> Pendente
-          </span>
-        )}
-        <button
-          onClick={() => onMap(region.id)}
-          className={`flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-lg border transition-colors ${
-            active
-              ? "bg-[#3B82F6] border-[#3B82F6] text-white"
-              : "bg-white border-[#E5E5E8] text-[#4A4A52] hover:bg-[#F1F1F4]"
-          }`}
-        >
-          <Map className="w-3 h-3" />
-          {active ? "Mapeando..." : "Mapear"}
-        </button>
-      </div>
-    </motion.div>
-  );
-}
+      {/* Status badge */}
+      {region.rect ? (
+        <span className="flex items-center gap-1 text-[10px] font-semibold text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full whitespace-nowrap">
+          <CheckCircle2 className="w-3 h-3" /> Mapeado
+        </span>
+      ) : (
+        <span className="flex items-center gap-1 text-[10px] font-medium text-[#9CA3AF] bg-[#F4F4F6] border border-[#E5E5E8] px-2 py-0.5 rounded-full whitespace-nowrap">
+          <Circle className="w-3 h-3" /> Pendente
+        </span>
+      )}
 
-function BlueprintSheet({ zoom }) {
-  const scale = zoom / 100;
-  return (
-    <div className="relative w-full h-full flex items-center justify-center bg-[#F4F4F6] overflow-auto p-6">
-      <div
-        className="relative bg-white shadow-md flex-shrink-0"
-        style={{
-          width: `${scale * 660}px`,
-          height: `${scale * 500}px`,
-          border: "1px solid #D1D5DB",
-          transition: "width 0.2s, height 0.2s",
-        }}
+      {/* Demarcar button */}
+      <button
+        onClick={() => onDemarcar(region.id)}
+        className={`flex items-center gap-1 text-[11px] font-medium px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap flex-shrink-0 ${
+          active
+            ? "bg-[#3B82F6] text-white"
+            : "bg-white border border-[#E5E5E8] text-[#4A4A52] hover:bg-[#F1F1F4]"
+        }`}
       >
-        {/* SVG drawing */}
-        <svg width="100%" height="100%" viewBox="0 0 660 500" xmlns="http://www.w3.org/2000/svg" className="absolute inset-0">
-          {/* Outer border */}
-          <rect x="8" y="8" width="644" height="484" fill="none" stroke="#9CA3AF" strokeWidth="1.5" />
-          <rect x="12" y="12" width="636" height="476" fill="none" stroke="#E5E7EB" strokeWidth="0.5" />
-
-          {/* Header */}
-          <rect x="8" y="8" width="644" height="42" fill="#F9FAFB" stroke="#9CA3AF" strokeWidth="1" />
-          <text x="334" y="24" textAnchor="middle" fontSize="10" fontWeight="700" fill="#1F2937" fontFamily="Inter,sans-serif">PROJETO ESTRUTURAL — CADERNO DE PILARES</text>
-          <text x="334" y="38" textAnchor="middle" fontSize="7.5" fill="#6B7280" fontFamily="Inter,sans-serif">OBRA: Edifício Torres do Rio  |  PAVIMENTO: 3º AO 8º  |  FOLHA: 07/24  |  REV: C</text>
-
-          {/* Vista Frontal area (panels) */}
-          <text x="20" y="67" fontSize="7.5" fontWeight="600" fill="#6B7280" fontFamily="Inter,sans-serif">VISTA FRONTAL — PAINÉIS P-07 A P-12</text>
-
-          {/* Panels row */}
-          {[0,1,2,3,4,5].map(i => (
-            <g key={i}>
-              <rect x={22 + i*104} y={74} width={94} height={200} fill={["#EFF6FF","#F0FDF4","#FFF7ED","#FDF4FF","#FFFBEB","#F0F9FF"][i]} stroke="#9CA3AF" strokeWidth="0.8" />
-              {/* sarrafo lines */}
-              {[0,1,2,3,4].map(j => (
-                <rect key={j} x={30 + i*104} y={82 + j*36} width={78} height={24} fill="none" stroke={["#60A5FA","#34D399","#FB923C","#A78BFA","#FBBF24","#38BDF8"][i]} strokeWidth="1" />
-              ))}
-              <text x={69 + i*104} y={284} textAnchor="middle" fontSize="7" fill="#374151" fontFamily="Inter,sans-serif">{`P-0${7+i}`}</text>
-            </g>
-          ))}
-
-          {/* Section detail area */}
-          <text x="20" y="305" fontSize="7.5" fontWeight="600" fill="#6B7280" fontFamily="Inter,sans-serif">DETALHE SEÇÃO TRANSVERSAL</text>
-          {[0,1,2].map(i => (
-            <g key={i}>
-              <rect x={22 + i*110} y={312} width={94} height={65} fill="#FAFAFA" stroke="#9CA3AF" strokeWidth="0.8" />
-              <line x1={22+i*110} y1={344} x2={116+i*110} y2={344} stroke="#D1D5DB" strokeWidth="0.5" />
-              <line x1={69+i*110} y1={312} x2={69+i*110} y2={377} stroke="#D1D5DB" strokeWidth="0.5" />
-              {[0,1,2,3].map(j => (
-                <circle key={j} cx={35+j*25+i*110} cy={328} r="4" fill="#F3F4F6" stroke="#4B5563" strokeWidth="1" />
-              ))}
-              <text x={69+i*110} y={390} textAnchor="middle" fontSize="6.5" fill="#6B7280" fontFamily="Inter,sans-serif">{`Seção S-0${i+1} | e=20cm`}</text>
-            </g>
-          ))}
-
-          {/* Title block / carimbo */}
-          <rect x="8" y="430" width="644" height="62" fill="#F9FAFB" stroke="#9CA3AF" strokeWidth="1" />
-          <line x1="210" y1="430" x2="210" y2="492" stroke="#D1D5DB" strokeWidth="0.8" />
-          <line x1="420" y1="430" x2="420" y2="492" stroke="#D1D5DB" strokeWidth="0.8" />
-          <text x="109" y="446" textAnchor="middle" fontSize="8" fontWeight="700" fill="#1F2937" fontFamily="Inter,sans-serif">ESTRUTURAS APEX ENG. LTDA.</text>
-          <text x="109" y="460" textAnchor="middle" fontSize="7" fill="#4B5563" fontFamily="Inter,sans-serif">Resp.: Eng. A. Silva  |  CREA: 12345</text>
-          <text x="109" y="473" textAnchor="middle" fontSize="7" fill="#4B5563" fontFamily="Inter,sans-serif">Data: Mar/2024</text>
-          <text x="315" y="446" textAnchor="middle" fontSize="8" fontWeight="600" fill="#1F2937" fontFamily="Inter,sans-serif">OBRA: Edifício Torres do Rio</text>
-          <text x="315" y="460" textAnchor="middle" fontSize="7" fill="#4B5563" fontFamily="Inter,sans-serif">Local: São Paulo - SP  |  Contr.: 2024/0087</text>
-          <text x="315" y="473" textAnchor="middle" fontSize="7" fill="#4B5563" fontFamily="Inter,sans-serif">Pavimento: 3º ao 8º  |  Pilares: P-07/P-12</text>
-          <text x="540" y="446" textAnchor="middle" fontSize="8" fontWeight="600" fill="#1F2937" fontFamily="Inter,sans-serif">Rev. C  |  Folha 07/24</text>
-          <text x="540" y="460" textAnchor="middle" fontSize="7" fill="#4B5563" fontFamily="Inter,sans-serif">Aprovado: Dir. Técnica</text>
-          <text x="540" y="473" textAnchor="middle" fontSize="7" fill="#4B5563" fontFamily="Inter,sans-serif">Arquivo: EST-PILARES-R3</text>
-        </svg>
-
-        {/* Overlay regions */}
-        {DEMO_AREAS.map((area) => {
-          const s = REGION_STYLES[area.color];
-          return (
-            <div
-              key={area.id}
-              className={`absolute border-2 rounded-sm pointer-events-none ${s.rect} ${area.dashed ? "border-dashed" : "border-solid"}`}
-              style={area.style}
-            >
-              <div className={`absolute top-1.5 left-2 flex items-center gap-1.5`}>
-                <span className={`w-2 h-2 rounded-full ${s.dot} flex-shrink-0`} />
-                <span className={`text-[10px] font-semibold ${s.tag} bg-white/80 px-1.5 py-0.5 rounded`}>
-                  {area.label}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+        <Target className="w-3 h-3" />
+        {active ? "Mapeando..." : "Demarcar"}
+      </button>
     </div>
   );
 }
@@ -230,15 +88,73 @@ export default function Configuracao() {
   const [projetista, setProjetista] = useState("Estruturas Apex");
   const [caderno, setCaderno] = useState("Caderno de Pilares");
   const [activeRegion, setActiveRegion] = useState(null);
-  const [activeTool, setActiveTool] = useState(null);
   const [zoom, setZoom] = useState(100);
+  const [saving, setSaving] = useState(false);
+  const fileInputRef = useRef(null);
 
-  function handleMap(id) {
-    setActiveRegion(activeRegion === id ? null : id);
-    setActiveTool("draw");
+  // regions state: array matching REGION_DEFINITIONS + rect field
+  const [regions, setRegions] = useState(REGION_DEFINITIONS.map(r => ({ ...r, rect: null, recordId: null })));
+
+  // Load saved gabaritos for current projetista + caderno
+  useEffect(() => {
+    async function load() {
+      const records = await base44.entities.GabaritoEspacial.filter({
+        projetista_id: projetista,
+        tipo_documento: caderno,
+      });
+      setRegions(REGION_DEFINITIONS.map(r => {
+        const saved = records.find(rec => rec.nome_regiao === r.label);
+        return {
+          ...r,
+          rect: saved ? { x: saved.coordenada_x, y: saved.coordenada_y, width: saved.largura, height: saved.altura } : null,
+          recordId: saved ? saved.id : null,
+        };
+      }));
+      setActiveRegion(null);
+    }
+    load();
+  }, [projetista, caderno]);
+
+  async function handleRegionDrawn(regionId, rect) {
+    const region = regions.find(r => r.id === regionId);
+    if (!region) return;
+    setSaving(true);
+    // If already has a record, delete it first
+    if (region.recordId) {
+      await base44.entities.GabaritoEspacial.delete(region.recordId);
+    }
+    const created = await base44.entities.GabaritoEspacial.create({
+      projetista_id: projetista,
+      tipo_documento: caderno,
+      nome_regiao: region.label,
+      coordenada_x: Math.round(rect.x),
+      coordenada_y: Math.round(rect.y),
+      largura: Math.round(rect.width),
+      altura: Math.round(rect.height),
+    });
+    setRegions(prev => prev.map(r =>
+      r.id === regionId ? { ...r, rect, recordId: created.id } : r
+    ));
+    setActiveRegion(null);
+    setSaving(false);
   }
 
-  const mappedCount = CAPTURE_REGIONS.filter(r => r.mapped).length;
+  async function handleRegionDeleted(regionId) {
+    const region = regions.find(r => r.id === regionId);
+    if (!region) return;
+    if (region.recordId) {
+      await base44.entities.GabaritoEspacial.delete(region.recordId);
+    }
+    setRegions(prev => prev.map(r =>
+      r.id === regionId ? { ...r, rect: null, recordId: null } : r
+    ));
+  }
+
+  function handleDemarcar(id) {
+    setActiveRegion(activeRegion === id ? null : id);
+  }
+
+  const mappedCount = regions.filter(r => r.rect).length;
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -247,20 +163,26 @@ export default function Configuracao() {
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="px-6 pt-6 pb-4 flex-shrink-0"
+        className="px-6 pt-6 pb-4 flex-shrink-0 flex items-start justify-between"
       >
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
+        <div>
+          <div className="flex items-center gap-3">
             <div className="w-6 h-6 rounded-lg bg-[#3B82F6] flex items-center justify-center">
               <span className="text-[11px] font-bold text-white">1</span>
             </div>
             <h1 className="text-xl font-semibold text-[#0F0F0F]">Mapeamento Espacial do PDF</h1>
+            <span className="text-xs font-medium text-[#6B6B72] bg-[#F1F1F4] px-2.5 py-1 rounded-full">Passo 1 de 3</span>
           </div>
-          <span className="text-xs font-medium text-[#6B6B72] bg-[#F1F1F4] px-2.5 py-1 rounded-full">Passo 1 de 3</span>
+          <p className="text-sm text-[#6B6B72] mt-1 ml-9">
+            Indique em quais regiões da folha padrão ficam os blocos principais de informação.
+          </p>
         </div>
-        <p className="text-sm text-[#6B6B72] mt-1 ml-9">
-          Indique em quais regiões da folha padrão ficam os blocos principais de informação.
-        </p>
+
+        {/* Advance button — top right */}
+        <Button className="h-9 bg-[#1D4ED8] hover:bg-[#1E40AF] text-white rounded-xl text-sm font-medium shadow-sm gap-2 px-4 flex-shrink-0">
+          Avançar para Regras (Passo 2)
+          <ArrowRight className="w-4 h-4" />
+        </Button>
       </motion.div>
 
       {/* Main layout */}
@@ -277,7 +199,7 @@ export default function Configuracao() {
           <div className="bg-white border border-[#E5E5E8] rounded-2xl shadow-sm p-5 flex flex-col gap-4">
             <div>
               <p className="text-[11px] font-semibold text-[#6B6B72] uppercase tracking-wider mb-1.5">Projetista</p>
-              <SelectField value={projetista} onChange={setProjetista} options={PROJETISTAS} placeholder="Selecione..." />
+              <SelectField value={projetista} onChange={setProjetista} options={PROJETISTAS_LIST} placeholder="Selecione..." />
             </div>
             <div>
               <p className="text-[11px] font-semibold text-[#6B6B72] uppercase tracking-wider mb-1.5">Tipo de Caderno</p>
@@ -285,40 +207,39 @@ export default function Configuracao() {
             </div>
           </div>
 
-          {/* Capture regions list */}
+          {/* Capture regions */}
           <div className="bg-white border border-[#E5E5E8] rounded-2xl shadow-sm p-5 flex flex-col gap-3 flex-1 overflow-hidden">
             <div className="flex-shrink-0">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold text-[#0F0F0F]">Áreas de Captura Obrigatórias</p>
-                <span className="text-[11px] font-medium text-[#6B6B72]">{mappedCount}/{CAPTURE_REGIONS.length}</span>
+                <span className="text-[11px] font-medium text-[#6B6B72]">{mappedCount}/{regions.length}</span>
               </div>
-              {/* Progress bar */}
               <div className="mt-2 h-1 w-full bg-[#F1F1F4] rounded-full overflow-hidden">
                 <div
                   className="h-full bg-[#3B82F6] rounded-full transition-all duration-500"
-                  style={{ width: `${(mappedCount / CAPTURE_REGIONS.length) * 100}%` }}
+                  style={{ width: `${(mappedCount / regions.length) * 100}%` }}
                 />
               </div>
             </div>
 
             <div className="flex flex-col gap-2 overflow-y-auto flex-1">
-              {CAPTURE_REGIONS.map((region, i) => (
-                <RegionRow
+              {regions.map(region => (
+                <RegionCard
                   key={region.id}
                   region={region}
-                  index={i}
                   active={activeRegion === region.id}
-                  onMap={handleMap}
+                  onDemarcar={handleDemarcar}
                 />
               ))}
             </div>
-          </div>
 
-          {/* Advance button */}
-          <Button className="w-full h-10 bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl text-sm font-medium shadow-sm gap-2 flex-shrink-0">
-            Avançar para Regras dos Painéis (Passo 2)
-            <ArrowRight className="w-4 h-4" />
-          </Button>
+            {saving && (
+              <div className="flex items-center gap-2 text-xs text-[#3B82F6] pt-1 flex-shrink-0">
+                <div className="w-3 h-3 border-2 border-[#BFDBFE] border-t-[#3B82F6] rounded-full animate-spin" />
+                Salvando coordenadas...
+              </div>
+            )}
+          </div>
         </motion.div>
 
         {/* ── RIGHT PANEL ─────────────────────────────────── */}
@@ -329,58 +250,78 @@ export default function Configuracao() {
           className="flex-1 min-w-0 flex flex-col bg-white border border-[#E5E5E8] rounded-2xl shadow-sm overflow-hidden"
         >
           {/* Toolbar */}
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-[#E5E5E8] flex-shrink-0 bg-[#FAFAFA]">
-            <Button variant="outline" size="sm" className="h-8 px-3 text-xs font-medium rounded-lg border-[#E5E5E8] text-[#4A4A52] hover:bg-[#F1F1F4] gap-1.5">
+          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#E5E5E8] flex-shrink-0 bg-[#FAFAFA]">
+            {/* Upload */}
+            <input
+              type="file"
+              accept=".pdf"
+              ref={fileInputRef}
+              className="hidden"
+              onChange={() => {}}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium border border-[#E5E5E8] bg-white text-[#4A4A52] hover:bg-[#F1F1F4] transition-colors"
+            >
               <Upload className="w-3.5 h-3.5" />
               Carregar PDF de Exemplo
-            </Button>
+            </button>
 
-            <div className="h-5 w-px bg-[#E5E5E8] mx-1" />
+            <div className="h-4 w-px bg-[#E5E5E8] mx-0.5" />
 
+            {/* Zoom */}
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setZoom(z => Math.max(50, z - 10))}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B6B72] border border-[#E5E5E8] bg-white hover:bg-[#F1F1F4] transition-colors"
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-[#6B6B72] border border-[#E5E5E8] bg-white hover:bg-[#F1F1F4] transition-colors"
               >
                 <ZoomOut className="w-3.5 h-3.5" />
               </button>
-              <span className="text-xs font-medium text-[#4A4A52] w-10 text-center tabular-nums">{zoom}%</span>
+              <span className="text-xs font-medium text-[#4A4A52] w-9 text-center tabular-nums">{zoom}%</span>
               <button
                 onClick={() => setZoom(z => Math.min(200, z + 10))}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6B6B72] border border-[#E5E5E8] bg-white hover:bg-[#F1F1F4] transition-colors"
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-[#6B6B72] border border-[#E5E5E8] bg-white hover:bg-[#F1F1F4] transition-colors"
               >
                 <ZoomIn className="w-3.5 h-3.5" />
               </button>
             </div>
 
-            <div className="h-5 w-px bg-[#E5E5E8] mx-1" />
+            <div className="h-4 w-px bg-[#E5E5E8] mx-0.5" />
 
+            {/* Draw tool */}
             <button
-              onClick={() => setActiveTool(activeTool === "draw" ? null : "draw")}
+              onClick={() => setActiveRegion(activeRegion ? null : null)}
+              disabled={!activeRegion}
               className={`flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium border transition-colors ${
-                activeTool === "draw"
+                activeRegion
                   ? "bg-[#EFF6FF] border-[#3B82F6] text-[#3B82F6]"
-                  : "bg-white border-[#E5E5E8] text-[#4A4A52] hover:bg-[#F1F1F4]"
+                  : "bg-white border-[#E5E5E8] text-[#A1A1AA] cursor-not-allowed"
               }`}
             >
               <Crosshair className="w-3.5 h-3.5" />
-              Desenhar Nova Região Retangular
+              Desenhar Região Retangular
             </button>
 
-            {/* Active region indicator */}
+            {/* Active indicator */}
             {activeRegion && (
-              <div className="ml-auto flex items-center gap-1.5 bg-[#EFF6FF] border border-[#3B82F6] rounded-lg px-3 h-8">
-                <div className="w-2 h-2 rounded-full bg-[#3B82F6] animate-pulse" />
-                <span className="text-xs font-medium text-[#3B82F6]">
-                  Mapeando Região {activeRegion}
+              <div className="ml-2 flex items-center gap-1.5 bg-[#EFF6FF] border border-[#BFDBFE] rounded-lg px-2.5 h-7">
+                <div className="w-1.5 h-1.5 rounded-full bg-[#3B82F6] animate-pulse" />
+                <span className="text-[11px] font-medium text-[#3B82F6]">
+                  Clique e arraste para demarcar Região {activeRegion}
                 </span>
               </div>
             )}
           </div>
 
-          {/* Blueprint viewer */}
-          <div className="flex-1 overflow-auto">
-            <BlueprintSheet zoom={zoom} />
+          {/* Blueprint canvas */}
+          <div className="flex-1 overflow-hidden">
+            <BlueprintCanvas
+              zoom={zoom}
+              activeRegion={activeRegion}
+              regions={regions}
+              onRegionDrawn={handleRegionDrawn}
+              onRegionDeleted={handleRegionDeleted}
+            />
           </div>
         </motion.div>
 

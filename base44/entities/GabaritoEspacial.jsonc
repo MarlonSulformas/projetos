@@ -1,0 +1,32 @@
+{
+  "name": "GabaritoEspacial",
+  "type": "object",
+  "properties": {
+    "projetista_id": {
+      "type": "string"
+    },
+    "tipo_documento": {
+      "type": "string"
+    },
+    "nome_regiao": {
+      "type": "string"
+    },
+    "coordenada_x": {
+      "type": "number"
+    },
+    "coordenada_y": {
+      "type": "number"
+    },
+    "largura": {
+      "type": "number"
+    },
+    "altura": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "projetista_id",
+    "tipo_documento",
+    "nome_regiao"
+  ]
+}
