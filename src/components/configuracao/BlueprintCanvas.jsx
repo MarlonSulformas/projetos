@@ -1,36 +1,68 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import { Trash2 } from "lucide-react";
 
-// Use the worker bundled with pdfjs-dist
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url
 ).toString();
 
 const COLOR_MAP = {
-  blue:   { border: "#3B82F6", bg: "rgba(59,130,246,0.18)",  tag: "#1D4ED8", tagBg: "rgba(219,234,254,0.95)" },
-  green:  { border: "#22C55E", bg: "rgba(34,197,94,0.18)",   tag: "#15803D", tagBg: "rgba(220,252,231,0.95)" },
-  orange: { border: "#F97316", bg: "rgba(249,115,22,0.18)",  tag: "#C2410C", tagBg: "rgba(255,237,213,0.95)" },
-  violet: { border: "#A855F7", bg: "rgba(168,85,247,0.18)",  tag: "#7E22CE", tagBg: "rgba(243,232,255,0.95)" },
+  blue:   { border: "#3B82F6", bg: "rgba(59,130,246,0.15)",  tag: "#1D4ED8", tagBg: "rgba(219,234,254,0.95)" },
+  green:  { border: "#22C55E", bg: "rgba(34,197,94,0.15)",   tag: "#15803D", tagBg: "rgba(220,252,231,0.95)" },
+  orange: { border: "#F97316", bg: "rgba(249,115,22,0.15)",  tag: "#C2410C", tagBg: "rgba(255,237,213,0.95)" },
+  violet: { border: "#A855F7", bg: "rgba(168,85,247,0.15)",  tag: "#7E22CE", tagBg: "rgba(243,232,255,0.95)" },
 };
 function getColor(id) { return COLOR_MAP[id] || COLOR_MAP.blue; }
 
-/**
- * Renderiza o PDF em canvas (sem scroll, zoom automático fit-to-container).
- * Áreas salvas em coordenadas normalizadas (0..1) relativas ao canvas renderizado.
- */
-export default function BlueprintCanvas({ activeAreaId, areas, pdfUrl, onRegionDrawn, onRegionDeleted }) {
+const HANDLE_SIZE = 8; // px
+
+// Which corner is being resized
+const CORNERS = ["nw", "ne", "sw", "se"];
+
+function getHandleStyle(corner, borderColor) {
+  const base = {
+    position: "absolute",
+    width: HANDLE_SIZE,
+    height: HANDLE_SIZE,
+    background: "#fff",
+    border: `2px solid ${borderColor}`,
+    borderRadius: 2,
+    zIndex: 10,
+    cursor: corner === "nw" || corner === "se" ? "nwse-resize" : "nesw-resize",
+  };
+  const half = HANDLE_SIZE / 2;
+  if (corner === "nw") return { ...base, top: -half, left: -half };
+  if (corner === "ne") return { ...base, top: -half, right: -half };
+  if (corner === "sw") return { ...base, bottom: -half, left: -half };
+  if (corner === "se") return { ...base, bottom: -half, right: -half };
+  return base;
+}
+
+export default function BlueprintCanvas({
+  drawingColor,
+  isDrawingMode,
+  areas,
+  pdfUrl,
+  onRegionDrawn,   // (rect: {x,y,width,height} normalized) => void  — called when draw ends
+  onRegionResized, // (areaId, rect) => void
+  onRegionDeleted, // (areaId) => void
+}) {
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
-  const [drawing, setDrawing] = useState(null);
+
+  // Drawing state
+  const [drawing, setDrawing] = useState(null); // { sx, sy, cx, cy }
+
+  // Resizing state
+  const [resizing, setResizing] = useState(null); // { areaId, corner, origRect, startX, startY }
+
   const [hoveredId, setHoveredId] = useState(null);
 
-  // Renderiza o PDF no canvas sempre que a URL ou o tamanho do container mudar
+  // ── PDF rendering ──────────────────────────────────────────────
   useEffect(() => {
     if (!pdfUrl || !containerRef.current) return;
-
     let cancelled = false;
 
     async function render() {
@@ -41,8 +73,6 @@ export default function BlueprintCanvas({ activeAreaId, areas, pdfUrl, onRegionD
 
       const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
       if (cancelled) return;
-
-      // Renderiza a primeira página ajustada ao container
       const page = await pdf.getPage(1);
       if (cancelled) return;
 
@@ -60,7 +90,6 @@ export default function BlueprintCanvas({ activeAreaId, areas, pdfUrl, onRegionD
       const canvas = canvasRef.current;
       if (!canvas || cancelled) return;
 
-      // Canvas interno em alta resolução, exibido no tamanho lógico via CSS
       canvas.width = Math.floor(scaledViewport.width);
       canvas.height = Math.floor(scaledViewport.height);
       canvas.style.width = `${canvasW}px`;
@@ -75,51 +104,103 @@ export default function BlueprintCanvas({ activeAreaId, areas, pdfUrl, onRegionD
     return () => { cancelled = true; };
   }, [pdfUrl]);
 
-  // Re-renderiza quando o container é redimensionado
+  // Re-render on resize
   useEffect(() => {
     if (!containerRef.current) return;
     const obs = new ResizeObserver(() => {
-      if (pdfUrl) {
-        // Força re-render mudando uma dep — re-usa o efeito acima
-        setCanvasSize(s => ({ ...s }));
-      }
+      if (pdfUrl) setCanvasSize(s => ({ ...s }));
     });
     obs.observe(containerRef.current);
     return () => obs.disconnect();
   }, [pdfUrl]);
 
-  function getPosNorm(e) {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
+  // ── Coordinate helpers ─────────────────────────────────────────
+  function getNorm(e) {
+    const overlay = e.currentTarget;
+    const rect = overlay.getBoundingClientRect();
     return {
       x: (e.clientX - rect.left) / rect.width,
       y: (e.clientY - rect.top) / rect.height,
     };
   }
 
-  function onMouseDown(e) {
-    if (!activeAreaId) return;
+  // ── Drawing handlers ───────────────────────────────────────────
+  function onOverlayMouseDown(e) {
+    if (!isDrawingMode) return;
     e.preventDefault();
-    const p = getPosNorm(e);
+    const p = getNorm(e);
     setDrawing({ sx: p.x, sy: p.y, cx: p.x, cy: p.y });
   }
-  function onMouseMove(e) {
-    if (!drawing) return;
-    const p = getPosNorm(e);
-    setDrawing(d => ({ ...d, cx: p.x, cy: p.y }));
-  }
-  function onMouseUp() {
-    if (!drawing || !activeAreaId) return;
-    const x = Math.min(drawing.sx, drawing.cx);
-    const y = Math.min(drawing.sy, drawing.cy);
-    const w = Math.abs(drawing.cx - drawing.sx);
-    const h = Math.abs(drawing.cy - drawing.sy);
-    if (w > 0.01 && h > 0.01) {
-      onRegionDrawn(activeAreaId, { x, y, width: w, height: h });
+
+  function onOverlayMouseMove(e) {
+    if (drawing) {
+      const p = getNorm(e);
+      setDrawing(d => ({ ...d, cx: p.x, cy: p.y }));
+      return;
     }
-    setDrawing(null);
+    if (resizing) {
+      handleResizeMove(e);
+    }
   }
+
+  function onOverlayMouseUp(e) {
+    if (drawing) {
+      const x = Math.min(drawing.sx, drawing.cx);
+      const y = Math.min(drawing.sy, drawing.cy);
+      const w = Math.abs(drawing.cx - drawing.sx);
+      const h = Math.abs(drawing.cy - drawing.sy);
+      setDrawing(null);
+      if (w > 0.01 && h > 0.01) {
+        onRegionDrawn({ x, y, width: w, height: h });
+      }
+      return;
+    }
+    if (resizing) {
+      setResizing(null);
+    }
+  }
+
+  // ── Resize handlers ────────────────────────────────────────────
+  function startResize(e, area, corner) {
+    e.stopPropagation();
+    e.preventDefault();
+    const overlay = e.currentTarget.closest("[data-overlay]");
+    if (!overlay) return;
+    const rect = overlay.getBoundingClientRect();
+    setResizing({
+      areaId: area.id,
+      corner,
+      origRect: { ...area.rect },
+      startX: (e.clientX - rect.left) / rect.width,
+      startY: (e.clientY - rect.top) / rect.height,
+      overlayRect: rect,
+    });
+  }
+
+  function handleResizeMove(e) {
+    if (!resizing) return;
+    const { overlayRect } = resizing;
+    const cx = (e.clientX - overlayRect.left) / overlayRect.width;
+    const cy = (e.clientY - overlayRect.top) / overlayRect.height;
+    const dx = cx - resizing.startX;
+    const dy = cy - resizing.startY;
+    let { x, y, width, height } = resizing.origRect;
+
+    if (resizing.corner === "nw") { x += dx; y += dy; width -= dx; height -= dy; }
+    if (resizing.corner === "ne") { y += dy; width += dx; height -= dy; }
+    if (resizing.corner === "sw") { x += dx; width -= dx; height += dy; }
+    if (resizing.corner === "se") { width += dx; height += dy; }
+
+    // Clamp
+    x = Math.max(0, Math.min(x, 0.99));
+    y = Math.max(0, Math.min(y, 0.99));
+    width = Math.max(0.01, Math.min(width, 1 - x));
+    height = Math.max(0.01, Math.min(height, 1 - y));
+
+    onRegionResized(resizing.areaId, { x, y, width, height });
+  }
+
+  const toP = v => `${(v * 100).toFixed(4)}%`;
 
   const inProgress = drawing ? {
     x: Math.min(drawing.sx, drawing.cx),
@@ -128,40 +209,32 @@ export default function BlueprintCanvas({ activeAreaId, areas, pdfUrl, onRegionD
     height: Math.abs(drawing.cy - drawing.sy),
   } : null;
 
-  const activeArea = activeAreaId ? areas.find(a => a.id === activeAreaId) : null;
-  const toPercent = v => `${(v * 100).toFixed(4)}%`;
+  const drawColor = getColor(drawingColor);
 
   return (
     <div
       ref={containerRef}
       style={{ position: "relative", width: "100%", height: "100%", background: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}
     >
-      {/* Canvas do PDF */}
-      <canvas
-        ref={canvasRef}
-        style={{
-          display: "block",
-          boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
-          background: "#fff",
-        }}
-      />
+      {/* PDF canvas */}
+      <canvas ref={canvasRef} style={{ display: "block", boxShadow: "0 2px 12px rgba(0,0,0,0.15)", background: "#fff" }} />
 
-      {/* Overlay de marcação — posicionado exatamente sobre o canvas */}
+      {/* Overlay */}
       {canvasSize.w > 0 && (
         <div
+          data-overlay="true"
           style={{
             position: "absolute",
             width: canvasSize.w,
             height: canvasSize.h,
-            cursor: activeAreaId ? "crosshair" : "default",
-            pointerEvents: activeAreaId ? "auto" : "none",
+            cursor: isDrawingMode ? "crosshair" : "default",
           }}
-          onMouseDown={onMouseDown}
-          onMouseMove={onMouseMove}
-          onMouseUp={onMouseUp}
-          onMouseLeave={onMouseUp}
+          onMouseDown={onOverlayMouseDown}
+          onMouseMove={onOverlayMouseMove}
+          onMouseUp={onOverlayMouseUp}
+          onMouseLeave={onOverlayMouseUp}
         >
-          {/* Áreas existentes */}
+          {/* Saved areas */}
           {areas.filter(a => a.rect).map(area => {
             const c = getColor(area.color);
             const r = area.rect;
@@ -171,63 +244,70 @@ export default function BlueprintCanvas({ activeAreaId, areas, pdfUrl, onRegionD
                 key={area.id}
                 style={{
                   position: "absolute",
-                  left: toPercent(r.x),
-                  top: toPercent(r.y),
-                  width: toPercent(r.width),
-                  height: toPercent(r.height),
+                  left: toP(r.x), top: toP(r.y),
+                  width: toP(r.width), height: toP(r.height),
                   border: `2px dashed ${c.border}`,
                   backgroundColor: c.bg,
-                  borderRadius: "3px",
-                  pointerEvents: activeAreaId ? "none" : "auto",
+                  borderRadius: 3,
                   boxSizing: "border-box",
+                  pointerEvents: isDrawingMode ? "none" : "auto",
                 }}
                 onMouseEnter={() => setHoveredId(area.id)}
                 onMouseLeave={() => setHoveredId(null)}
               >
+                {/* Badge */}
                 <span style={{
-                  position: "absolute", top: "4px", left: "6px",
-                  fontSize: "10px", fontWeight: "600",
+                  position: "absolute", top: 4, left: 6,
+                  fontSize: 10, fontWeight: 600,
                   color: c.tag, backgroundColor: c.tagBg,
-                  padding: "2px 6px", borderRadius: "4px",
-                  whiteSpace: "nowrap",
+                  padding: "2px 6px", borderRadius: 4,
+                  whiteSpace: "nowrap", pointerEvents: "none",
+                  maxWidth: "80%", overflow: "hidden", textOverflow: "ellipsis",
                 }}>
-                  {area.name}
+                  {area.tagLabel ? `[${area.tagLabel}] ` : ""}{area.name}
                 </span>
-                {isHovered && (
+
+                {/* Delete button */}
+                {isHovered && !isDrawingMode && (
                   <button
+                    onMouseDown={e => e.stopPropagation()}
                     onClick={e => { e.stopPropagation(); onRegionDeleted(area.id); }}
                     style={{
-                      position: "absolute", top: "4px", right: "4px",
-                      width: "22px", height: "22px",
-                      background: "#EF4444", borderRadius: "4px",
+                      position: "absolute", top: 4, right: 4,
+                      width: 22, height: 22,
+                      background: "#EF4444", borderRadius: 4,
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      cursor: "pointer", border: "none",
+                      cursor: "pointer", border: "none", zIndex: 20,
                     }}
                   >
-                    <Trash2 style={{ width: "12px", height: "12px", color: "white" }} />
+                    <Trash2 style={{ width: 12, height: 12, color: "white" }} />
                   </button>
                 )}
+
+                {/* Resize handles */}
+                {isHovered && !isDrawingMode && CORNERS.map(corner => (
+                  <div
+                    key={corner}
+                    style={getHandleStyle(corner, c.border)}
+                    onMouseDown={e => startResize(e, area, corner)}
+                  />
+                ))}
               </div>
             );
           })}
 
-          {/* Retângulo em progresso */}
-          {inProgress && activeArea && (() => {
-            const c = getColor(activeArea.color);
-            return (
-              <div style={{
-                position: "absolute",
-                left: toPercent(inProgress.x),
-                top: toPercent(inProgress.y),
-                width: toPercent(inProgress.width),
-                height: toPercent(inProgress.height),
-                border: `2px dashed ${c.border}`,
-                backgroundColor: c.bg,
-                borderRadius: "3px",
-                pointerEvents: "none",
-              }} />
-            );
-          })()}
+          {/* Drawing in progress */}
+          {inProgress && inProgress.width > 0.005 && inProgress.height > 0.005 && (
+            <div style={{
+              position: "absolute",
+              left: toP(inProgress.x), top: toP(inProgress.y),
+              width: toP(inProgress.width), height: toP(inProgress.height),
+              border: `2px dashed ${drawColor.border}`,
+              backgroundColor: drawColor.bg,
+              borderRadius: 3,
+              pointerEvents: "none",
+            }} />
+          )}
         </div>
       )}
     </div>

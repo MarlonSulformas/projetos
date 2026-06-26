@@ -11,6 +11,14 @@
     "nome_regiao": {
       "type": "string"
     },
+    "tag_funcao": {
+      "type": "string",
+      "enum": [
+        "painel_bruto",
+        "id_elemento",
+        "secao_concreto"
+      ]
+    },
     "color": {
       "type": "string",
       "default": "blue"
@@ -34,7 +42,6 @@
   },
   "required": [
     "projetista_id",
-    "tipo_documento",
     "nome_regiao"
   ]
 }

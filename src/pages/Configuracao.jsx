@@ -15,21 +15,33 @@ const COLOR_OPTIONS = [
   { id: "violet", label: "Roxo",   cls: "bg-violet-500", border: "border-violet-500", light: "bg-violet-50" },
 ];
 
+const FUNCAO_OPTIONS = [
+  { value: "painel_bruto",   label: "Região dos Painéis (Medidas Brutas)",   tag: "Painel Bruto" },
+  { value: "id_elemento",    label: "Identificação do Elemento (Texto)",      tag: "ID Elemento" },
+  { value: "secao_concreto", label: "Seção Transversal (Geometria)",          tag: "Seção" },
+];
+
+function getFuncaoMeta(value) {
+  return FUNCAO_OPTIONS.find(f => f.value === value) || null;
+}
+
 function getColorMeta(id) {
   return COLOR_OPTIONS.find(c => c.id === id) || COLOR_OPTIONS[0];
 }
 
-function NewAreaModal({ onConfirm, onClose }) {
+// ── Modal ──────────────────────────────────────────────────────────────────────
+function NewAreaModal({ pendingRect, onConfirm, onClose }) {
   const [name, setName] = useState("");
   const [color, setColor] = useState("blue");
+  const [funcao, setFuncao] = useState("");
   const inputRef = useRef(null);
 
   useEffect(() => { setTimeout(() => inputRef.current?.focus(), 50); }, []);
 
   function submit(e) {
     e.preventDefault();
-    if (!name.trim()) return;
-    onConfirm({ name: name.trim(), color });
+    if (!name.trim() || !funcao) return;
+    onConfirm({ name: name.trim(), color, funcao });
   }
 
   return (
@@ -39,7 +51,7 @@ function NewAreaModal({ onConfirm, onClose }) {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 8 }}
         transition={{ duration: 0.18 }}
-        className="bg-white rounded-2xl shadow-xl border border-[#E5E5E8] w-[340px] p-5"
+        className="bg-white rounded-2xl shadow-xl border border-[#E5E5E8] w-[380px] p-5"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
@@ -50,6 +62,7 @@ function NewAreaModal({ onConfirm, onClose }) {
         </div>
 
         <form onSubmit={submit} className="flex flex-col gap-4">
+          {/* Nome */}
           <div>
             <label className="text-[11px] font-semibold text-[#6B6B72] uppercase tracking-wider block mb-1.5">
               Nome da Área
@@ -63,6 +76,35 @@ function NewAreaModal({ onConfirm, onClose }) {
             />
           </div>
 
+          {/* Função Estrutural */}
+          <div>
+            <label className="text-[11px] font-semibold text-[#6B6B72] uppercase tracking-wider block mb-1.5">
+              Função Estrutural da Área <span className="text-red-400">*</span>
+            </label>
+            <div className="relative">
+              <select
+                value={funcao}
+                onChange={e => setFuncao(e.target.value)}
+                required
+                className="w-full appearance-none border border-[#E5E5E8] rounded-lg px-3 py-2 text-sm text-[#1F1F24] bg-white focus:outline-none focus:ring-1 focus:ring-[#3B82F6] focus:border-[#3B82F6] transition-colors cursor-pointer pr-8"
+              >
+                <option value="">Selecione a função...</option>
+                {FUNCAO_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-[#6B6B72] text-xs">▾</div>
+            </div>
+            {funcao && (
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <span className="text-[10px] font-medium text-[#3B82F6] bg-blue-50 border border-blue-100 rounded px-2 py-0.5">
+                  Tag: {getFuncaoMeta(funcao)?.value}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Cor */}
           <div>
             <label className="text-[11px] font-semibold text-[#6B6B72] uppercase tracking-wider block mb-2">
               Cor do Retângulo
@@ -88,7 +130,11 @@ function NewAreaModal({ onConfirm, onClose }) {
             <button type="button" onClick={onClose} className="flex-1 h-9 rounded-xl border border-[#E5E5E8] text-sm font-medium text-[#4A4A52] hover:bg-[#F1F1F4] transition-colors">
               Cancelar
             </button>
-            <button type="submit" disabled={!name.trim()} className="flex-1 h-9 rounded-xl bg-[#3B82F6] hover:bg-[#2563EB] disabled:opacity-50 text-sm font-medium text-white transition-colors">
+            <button
+              type="submit"
+              disabled={!name.trim() || !funcao}
+              className="flex-1 h-9 rounded-xl bg-[#3B82F6] hover:bg-[#2563EB] disabled:opacity-50 text-sm font-medium text-white transition-colors"
+            >
               Criar Área
             </button>
           </div>
@@ -98,67 +144,71 @@ function NewAreaModal({ onConfirm, onClose }) {
   );
 }
 
+// ── AreaCard ───────────────────────────────────────────────────────────────────
 function AreaCard({ area, active, onTarget, onDelete }) {
   const c = getColorMeta(area.color);
+  const funcaoMeta = area.funcao ? getFuncaoMeta(area.funcao) : null;
+
   return (
     <motion.div
       initial={{ opacity: 0, x: -8 }}
       animate={{ opacity: 1, x: 0 }}
-      className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all duration-150 group ${
+      className={`flex flex-col gap-1 px-3 py-2.5 rounded-xl border transition-all duration-150 group ${
         active ? `${c.border} ${c.light} border-2` : "border-[#E5E5E8] bg-white hover:border-[#D4D4D8]"
       }`}
     >
-      {/* Color dot */}
-      <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${c.cls}`} />
+      <div className="flex items-center gap-2.5">
+        <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${c.cls}`} />
+        <p className="flex-1 text-[12px] font-medium text-[#1F1F24] truncate">{area.name}</p>
 
-      {/* Name */}
-      <p className="flex-1 text-[12px] font-medium text-[#1F1F24] truncate">{area.name}</p>
+        {area.rect ? (
+          <CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" />
+        ) : (
+          <Clock className="w-3 h-3 text-[#9CA3AF] flex-shrink-0" />
+        )}
 
-      {/* Status */}
-      {area.rect ? (
-        <span className="flex items-center gap-1 text-[10px] font-semibold text-green-600 whitespace-nowrap">
-          <CheckCircle2 className="w-3 h-3" />
-        </span>
-      ) : (
-        <span className="flex items-center gap-1 text-[10px] text-[#9CA3AF] whitespace-nowrap">
-          <Clock className="w-3 h-3" />
-        </span>
+        <button
+          onClick={() => onTarget(area.id)}
+          title="Demarcar no PDF"
+          className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
+            active ? "bg-[#3B82F6] text-white" : "bg-[#F1F1F4] text-[#6B6B72] hover:bg-[#E5E5E8]"
+          }`}
+        >
+          <Target className="w-3.5 h-3.5" />
+        </button>
+
+        <button
+          onClick={() => onDelete(area.id)}
+          className="w-7 h-7 rounded-lg flex items-center justify-center text-[#9CA3AF] hover:bg-red-50 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
+      </div>
+
+      {funcaoMeta && (
+        <div className="pl-5">
+          <span className="text-[10px] font-medium text-[#6B6B72] bg-[#F1F1F4] rounded px-1.5 py-0.5">
+            {funcaoMeta.tag}
+          </span>
+        </div>
       )}
-
-      {/* Target button */}
-      <button
-        onClick={() => onTarget(area.id)}
-        title="Demarcar no PDF"
-        className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
-          active
-            ? "bg-[#3B82F6] text-white"
-            : "bg-[#F1F1F4] text-[#6B6B72] hover:bg-[#E5E5E8]"
-        }`}
-      >
-        <Target className="w-3.5 h-3.5" />
-      </button>
-
-      {/* Delete */}
-      <button
-        onClick={() => onDelete(area.id)}
-        className="w-7 h-7 rounded-lg flex items-center justify-center text-[#9CA3AF] hover:bg-red-50 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
-      >
-        <Trash2 className="w-3 h-3" />
-      </button>
     </motion.div>
   );
 }
 
+// ── Page ───────────────────────────────────────────────────────────────────────
 export default function Configuracao() {
   const [projetista, setProjetista] = useState("Estruturas Apex");
   const [caderno, setCaderno] = useState("Caderno de Pilares");
   const [areas, setAreas] = useState([]);
   const [activeAreaId, setActiveAreaId] = useState(null);
-  const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pdfUrl, setPdfUrl] = useState(null);
   const [pdfName, setPdfName] = useState(null);
   const fileInputRef = useRef(null);
+
+  // Pending rect captured from canvas draw — triggers modal
+  const [pendingRect, setPendingRect] = useState(null);
 
   function handleFileChange(e) {
     const file = e.target.files?.[0];
@@ -170,22 +220,23 @@ export default function Configuracao() {
 
   useEffect(() => {
     async function load() {
-      // Find the projetista UUID by name, then load gabaritos
       try {
         const allProjetistas = await db.listProjetistas();
         const found = (allProjetistas || []).find(p => p.nome_razao_social === projetista);
         const pid = found?.id || projetista;
         const records = await db.listGabaritos(pid);
-        setAreas((records || [])
-          .map(r => ({
-            id: r.id,
-            recordId: r.id,
-            projetistaId: pid,
-            name: r.nome_regiao,
-            color: r.cor_marcador || "blue",
-            // Coordenadas normalizadas (0..1). Valores >= 1 são legados em px — descartamos.
-            rect: (r.largura > 0 && r.largura < 1) ? { x: r.coordenada_x, y: r.coordenada_y, width: r.largura, height: r.altura } : null,
-          })));
+        setAreas((records || []).map(r => ({
+          id: r.id,
+          recordId: r.id,
+          projetistaId: pid,
+          name: r.nome_regiao,
+          color: r.cor_marcador || "blue",
+          funcao: r.tag_funcao || null,
+          tagLabel: getFuncaoMeta(r.tag_funcao)?.tag || null,
+          rect: (r.largura > 0 && r.largura < 1)
+            ? { x: r.coordenada_x, y: r.coordenada_y, width: r.largura, height: r.altura }
+            : null,
+        })));
       } catch {
         setAreas([]);
       }
@@ -200,18 +251,31 @@ export default function Configuracao() {
     return found?.id || null;
   }
 
-  async function handleCreateArea({ name, color }) {
-    setShowModal(false);
+  // Called by BlueprintCanvas when user finishes drawing
+  function handleRegionDrawn(rect) {
+    if (!activeAreaId) {
+      // No active area → open modal to create new area with this rect
+      setPendingRect(rect);
+    }
+  }
+
+  // Modal confirm: create area with the pending rect
+  async function handleCreateArea({ name, color, funcao }) {
+    const rect = pendingRect;
+    setPendingRect(null);
+    setActiveAreaId(null);
     setSaving(true);
     const pid = await resolveProjetistaId();
+    const funcaoMeta = getFuncaoMeta(funcao);
     const created = await db.createGabarito({
       id_projetista: pid,
       nome_regiao: name,
       cor_marcador: color,
-      coordenada_x: 0,
-      coordenada_y: 0,
-      largura: 0,
-      altura: 0,
+      tag_funcao: funcao,
+      coordenada_x: parseFloat(rect.x.toFixed(6)),
+      coordenada_y: parseFloat(rect.y.toFixed(6)),
+      largura: parseFloat(rect.width.toFixed(6)),
+      altura: parseFloat(rect.height.toFixed(6)),
     });
     setAreas(prev => [...prev, {
       id: created.id,
@@ -219,33 +283,30 @@ export default function Configuracao() {
       projetistaId: pid,
       name,
       color,
-      rect: null,
+      funcao,
+      tagLabel: funcaoMeta?.tag || null,
+      rect,
     }]);
     setSaving(false);
   }
 
-  async function handleRegionDrawn(areaId, rect) {
+  async function handleRegionResized(areaId, rect) {
     const area = areas.find(a => a.id === areaId);
     if (!area) return;
-    setSaving(true);
-    // Salva coordenadas normalizadas (0..1) com 6 casas decimais de precisão
+    // Optimistic update
+    setAreas(prev => prev.map(a => a.id === areaId ? { ...a, rect } : a));
     await db.updateGabarito(area.recordId, {
       coordenada_x: parseFloat(rect.x.toFixed(6)),
       coordenada_y: parseFloat(rect.y.toFixed(6)),
       largura: parseFloat(rect.width.toFixed(6)),
       altura: parseFloat(rect.height.toFixed(6)),
     });
-    setAreas(prev => prev.map(a => a.id === areaId ? { ...a, rect } : a));
-    setActiveAreaId(null);
-    setSaving(false);
   }
 
   async function handleRegionDeleted(areaId) {
     const area = areas.find(a => a.id === areaId);
     if (!area) return;
-    await db.updateGabarito(area.recordId, {
-      coordenada_x: 0, coordenada_y: 0, largura: 0, altura: 0,
-    });
+    await db.updateGabarito(area.recordId, { coordenada_x: 0, coordenada_y: 0, largura: 0, altura: 0 });
     setAreas(prev => prev.map(a => a.id === areaId ? { ...a, rect: null } : a));
   }
 
@@ -261,7 +322,15 @@ export default function Configuracao() {
     setActiveAreaId(prev => prev === areaId ? null : areaId);
   }
 
+  const activeArea = activeAreaId ? areas.find(a => a.id === activeAreaId) : null;
   const mappedCount = areas.filter(a => a.rect).length;
+
+  // Drawing mode: either a specific area is targeted OR no area selected (draw to create new)
+  const isDrawingMode = !!activeAreaId || false;
+  const drawingColor = activeArea?.color || "blue";
+
+  // Whether the user can draw to create new (no active area, just click draw on canvas)
+  const canDrawNew = !activeAreaId && !!pdfUrl;
 
   return (
     <div className="flex flex-col overflow-hidden" style={{ height: "100%", overflow: "hidden" }}>
@@ -289,10 +358,10 @@ export default function Configuracao() {
         </Button>
       </motion.div>
 
-      {/* Body — 25 / 75 split */}
+      {/* Body — 25/75 split */}
       <div className="flex flex-1 min-h-0 w-full items-stretch gap-4 px-6 pb-6">
 
-        {/* ── LEFT PANEL (25%) ─────────────────────────── */}
+        {/* LEFT PANEL */}
         <motion.div
           initial={{ opacity: 0, x: -10 }}
           animate={{ opacity: 1, x: 0 }}
@@ -304,11 +373,8 @@ export default function Configuracao() {
             <div>
               <p className="text-[10px] font-semibold text-[#6B6B72] uppercase tracking-wider mb-1">Projetista</p>
               <div className="relative">
-                <select
-                  value={projetista}
-                  onChange={e => setProjetista(e.target.value)}
-                  className="w-full appearance-none bg-white border border-[#E5E5E8] text-xs text-[#1F1F24] rounded-lg px-2.5 py-1.5 pr-7 focus:outline-none focus:ring-1 focus:ring-[#3B82F6] cursor-pointer"
-                >
+                <select value={projetista} onChange={e => setProjetista(e.target.value)}
+                  className="w-full appearance-none bg-white border border-[#E5E5E8] text-xs text-[#1F1F24] rounded-lg px-2.5 py-1.5 pr-7 focus:outline-none focus:ring-1 focus:ring-[#3B82F6] cursor-pointer">
                   {PROJETISTAS_LIST.map(o => <option key={o}>{o}</option>)}
                 </select>
                 <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[#6B6B72]">▾</div>
@@ -317,11 +383,8 @@ export default function Configuracao() {
             <div>
               <p className="text-[10px] font-semibold text-[#6B6B72] uppercase tracking-wider mb-1">Tipo de Caderno</p>
               <div className="relative">
-                <select
-                  value={caderno}
-                  onChange={e => setCaderno(e.target.value)}
-                  className="w-full appearance-none bg-white border border-[#E5E5E8] text-xs text-[#1F1F24] rounded-lg px-2.5 py-1.5 pr-7 focus:outline-none focus:ring-1 focus:ring-[#3B82F6] cursor-pointer"
-                >
+                <select value={caderno} onChange={e => setCaderno(e.target.value)}
+                  className="w-full appearance-none bg-white border border-[#E5E5E8] text-xs text-[#1F1F24] rounded-lg px-2.5 py-1.5 pr-7 focus:outline-none focus:ring-1 focus:ring-[#3B82F6] cursor-pointer">
                   {CADERNOS.map(o => <option key={o}>{o}</option>)}
                 </select>
                 <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[#6B6B72]">▾</div>
@@ -331,7 +394,6 @@ export default function Configuracao() {
 
           {/* Areas manager */}
           <div className="bg-white border border-[#E5E5E8] rounded-2xl shadow-sm p-4 flex flex-col gap-3 flex-1 overflow-hidden">
-            {/* Header */}
             <div className="flex items-center justify-between flex-shrink-0">
               <div>
                 <p className="text-xs font-semibold text-[#0F0F0F]">Áreas de Captura</p>
@@ -339,25 +401,25 @@ export default function Configuracao() {
               </div>
               {areas.length > 0 && (
                 <div className="h-1 w-16 bg-[#F1F1F4] rounded-full overflow-hidden">
-                  <div className="h-full bg-[#3B82F6] rounded-full transition-all duration-500" style={{ width: `${areas.length ? (mappedCount / areas.length) * 100 : 0}%` }} />
+                  <div className="h-full bg-[#3B82F6] rounded-full transition-all duration-500"
+                    style={{ width: `${areas.length ? (mappedCount / areas.length) * 100 : 0}%` }} />
                 </div>
               )}
             </div>
 
-            {/* Create button */}
-            <button
-              onClick={() => setShowModal(true)}
-              className="flex items-center justify-center gap-1.5 w-full h-9 rounded-xl border-2 border-dashed border-[#D1D5DB] text-xs font-medium text-[#6B6B72] hover:border-[#3B82F6] hover:text-[#3B82F6] hover:bg-[#EFF6FF] transition-all duration-150 flex-shrink-0"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Criar Nova Área de Captura
-            </button>
+            {/* Hint for drawing new */}
+            {pdfUrl && !activeAreaId && (
+              <div className="flex items-center gap-1.5 bg-[#EFF6FF] border border-[#BFDBFE] rounded-lg px-3 py-2 flex-shrink-0">
+                <div className="w-2 h-2 rounded-full bg-[#3B82F6] animate-pulse flex-shrink-0" />
+                <span className="text-[10px] font-medium text-[#3B82F6]">Clique e arraste no PDF para criar nova área</span>
+              </div>
+            )}
 
             {/* Area cards */}
             <div className="flex flex-col gap-1.5 overflow-y-auto flex-1">
               {areas.length === 0 ? (
                 <div className="flex-1 flex items-center justify-center py-8 text-center">
-                  <p className="text-[11px] text-[#9CA3AF] leading-relaxed">Nenhuma área criada.<br />Clique em "+ Criar" para começar.</p>
+                  <p className="text-[11px] text-[#9CA3AF] leading-relaxed">Nenhuma área criada.<br />Desenhe no PDF para começar.</p>
                 </div>
               ) : (
                 areas.map(area => (
@@ -381,7 +443,7 @@ export default function Configuracao() {
           </div>
         </motion.div>
 
-        {/* ── RIGHT PANEL (75%) ────────────────────────── */}
+        {/* RIGHT PANEL */}
         <motion.div
           initial={{ opacity: 0, x: 10 }}
           animate={{ opacity: 1, x: 0 }}
@@ -396,17 +458,16 @@ export default function Configuracao() {
               className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium border border-[#E5E5E8] bg-white text-[#4A4A52] hover:bg-[#F1F1F4] transition-colors"
             >
               <Upload className="w-3.5 h-3.5" />
-              {pdfName ? pdfName : "Carregar PDF"}
+              {pdfName || "Carregar PDF"}
             </button>
 
-            {activeAreaId && (() => {
-              const a = areas.find(x => x.id === activeAreaId);
-              const c = a ? getColorMeta(a.color) : null;
+            {activeAreaId && activeArea && (() => {
+              const c = getColorMeta(activeArea.color);
               return (
                 <div className="ml-2 flex items-center gap-1.5 bg-[#EFF6FF] border border-[#BFDBFE] rounded-lg px-3 h-7">
-                  {c && <div className={`w-2 h-2 rounded-full ${c.cls} animate-pulse`} />}
+                  <div className={`w-2 h-2 rounded-full ${c.cls} animate-pulse`} />
                   <span className="text-[11px] font-medium text-[#3B82F6]">
-                    Clique e arraste para demarcar "{a?.name}"
+                    Redesenhando "{activeArea.name}"
                   </span>
                   <button onClick={() => setActiveAreaId(null)} className="ml-1 text-[#93C5FD] hover:text-[#3B82F6]">
                     <X className="w-3 h-3" />
@@ -420,10 +481,12 @@ export default function Configuracao() {
           <div style={{ flex: 1, minHeight: 0, height: "100%", width: "100%" }}>
             {pdfUrl ? (
               <BlueprintCanvas
-                activeAreaId={activeAreaId}
+                isDrawingMode={true}
+                drawingColor={drawingColor}
                 areas={areas}
                 pdfUrl={pdfUrl}
                 onRegionDrawn={handleRegionDrawn}
+                onRegionResized={handleRegionResized}
                 onRegionDeleted={handleRegionDeleted}
               />
             ) : (
@@ -448,9 +511,15 @@ export default function Configuracao() {
         </motion.div>
       </div>
 
-      {/* New area modal */}
+      {/* Modal — triggered when a rect is drawn */}
       <AnimatePresence>
-        {showModal && <NewAreaModal onConfirm={handleCreateArea} onClose={() => setShowModal(false)} />}
+        {pendingRect && (
+          <NewAreaModal
+            pendingRect={pendingRect}
+            onConfirm={handleCreateArea}
+            onClose={() => setPendingRect(null)}
+          />
+        )}
       </AnimatePresence>
     </div>
   );
