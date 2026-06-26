@@ -265,7 +265,7 @@ export default function Configuracao() {
   const mappedCount = areas.filter(a => a.rect).length;
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+    <div className="flex flex-col h-screen overflow-hidden">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -8 }}
@@ -291,14 +291,14 @@ export default function Configuracao() {
       </motion.div>
 
       {/* Body — 25 / 75 split */}
-      <div className="flex flex-1 min-h-0 px-6 pb-6 gap-4 overflow-hidden">
+      <div className="flex h-[calc(100vh-120px)] w-full items-stretch gap-4 px-6 pb-6">
 
         {/* ── LEFT PANEL (25%) ─────────────────────────── */}
         <motion.div
           initial={{ opacity: 0, x: -10 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.3 }}
-          className="w-[240px] flex-shrink-0 flex flex-col gap-3"
+          className="w-72 flex-shrink-0 flex flex-col gap-3 overflow-y-auto"
         >
           {/* Selectors */}
           <div className="bg-white border border-[#E5E5E8] rounded-2xl shadow-sm p-4 flex flex-col gap-3">
@@ -387,7 +387,7 @@ export default function Configuracao() {
           initial={{ opacity: 0, x: 10 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.3 }}
-          className="flex-1 min-w-0 min-h-0 flex flex-col bg-white border border-[#E5E5E8] rounded-2xl shadow-sm overflow-hidden"
+          className="flex-1 min-w-0 flex flex-col bg-white border border-[#E5E5E8] rounded-2xl shadow-sm overflow-hidden h-full"
         >
           {/* Toolbar */}
           <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#E5E5E8] flex-shrink-0 bg-[#FAFAFA]">
@@ -430,7 +430,7 @@ export default function Configuracao() {
           </div>
 
           {/* Canvas */}
-          <div className="flex-1 min-h-0 overflow-auto">
+          <div className="flex-1 overflow-auto h-full w-full">
             {pdfUrl ? (
               <BlueprintCanvas
                 zoom={zoom}
@@ -441,7 +441,7 @@ export default function Configuracao() {
                 onRegionDeleted={handleRegionDeleted}
               />
             ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center bg-[#F8F9FB] gap-4">
+              <div className="w-full h-full min-h-full flex flex-col items-center justify-center bg-[#F8F9FB] gap-4">
                 <div className="w-14 h-14 rounded-2xl bg-[#EFF6FF] flex items-center justify-center">
                   <Upload className="w-6 h-6 text-[#3B82F6]" />
                 </div>
