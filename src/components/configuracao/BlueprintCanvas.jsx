@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import { Trash2 } from "lucide-react";
 
 const COLOR_MAP = {
@@ -10,25 +10,50 @@ const COLOR_MAP = {
 
 function getColor(id) { return COLOR_MAP[id] || COLOR_MAP.blue; }
 
+/**
+ * Coordenadas das áreas são salvas NORMALIZADAS (0..1) relativas ao overlay.
+ * Isso garante que zoom/scroll do PDF não desalinhe as marcações.
+ * 
+ * area.rect = { x, y, width, height } — todos em fração (0..1)
+ * Para renderizar: multiplica pela largura/altura do overlay em pixels.
+ */
+
 export default function BlueprintCanvas({ activeAreaId, areas, pdfUrl, onRegionDrawn, onRegionDeleted }) {
   const overlayRef = useRef(null);
+  const [overlaySize, setOverlaySize] = useState({ w: 0, h: 0 });
   const [drawing, setDrawing] = useState(null);
   const [hoveredId, setHoveredId] = useState(null);
 
-  function getPos(e) {
+  // Mede o overlay em pixels para converter coordenadas normalizadas → px
+  useEffect(() => {
+    if (!overlayRef.current) return;
+    const measure = () => {
+      const { width, height } = overlayRef.current.getBoundingClientRect();
+      setOverlaySize({ w: width, h: height });
+    };
+    measure();
+    const obs = new ResizeObserver(measure);
+    obs.observe(overlayRef.current);
+    return () => obs.disconnect();
+  }, []);
+
+  function getPosNorm(e) {
     const rect = overlayRef.current.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    return {
+      x: (e.clientX - rect.left) / rect.width,
+      y: (e.clientY - rect.top) / rect.height,
+    };
   }
 
   function onMouseDown(e) {
     if (!activeAreaId) return;
     e.preventDefault();
-    const p = getPos(e);
+    const p = getPosNorm(e);
     setDrawing({ sx: p.x, sy: p.y, cx: p.x, cy: p.y });
   }
   function onMouseMove(e) {
     if (!drawing) return;
-    const p = getPos(e);
+    const p = getPosNorm(e);
     setDrawing(d => ({ ...d, cx: p.x, cy: p.y }));
   }
   function onMouseUp() {
@@ -37,7 +62,10 @@ export default function BlueprintCanvas({ activeAreaId, areas, pdfUrl, onRegionD
     const y = Math.min(drawing.sy, drawing.cy);
     const w = Math.abs(drawing.cx - drawing.sx);
     const h = Math.abs(drawing.cy - drawing.sy);
-    if (w > 8 && h > 8) onRegionDrawn(activeAreaId, { x, y, width: w, height: h });
+    // Mínimo de 1% do tamanho para considerar um desenho válido
+    if (w > 0.01 && h > 0.01) {
+      onRegionDrawn(activeAreaId, { x, y, width: w, height: h });
+    }
     setDrawing(null);
   }
 
@@ -50,12 +78,15 @@ export default function BlueprintCanvas({ activeAreaId, areas, pdfUrl, onRegionD
 
   const activeArea = activeAreaId ? areas.find(a => a.id === activeAreaId) : null;
 
+  // Converte coordenada normalizada para % (para usar em CSS)
+  const toPercent = (v) => `${(v * 100).toFixed(4)}%`;
+
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%", background: "#fff", overflow: "hidden" }}>
-      {/* PDF via iframe — ocupa 100% do espaço, o browser renderiza A4 com zoom automático */}
+    <div style={{ position: "relative", width: "100%", height: "100%", background: "#f5f5f5", overflow: "hidden" }}>
+      {/* PDF via iframe — ocupa 100% com scroll nativo */}
       <iframe
         key={pdfUrl}
-        src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+        src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
         style={{
           position: "absolute",
           inset: 0,
@@ -68,13 +99,14 @@ export default function BlueprintCanvas({ activeAreaId, areas, pdfUrl, onRegionD
         title="PDF Viewer"
       />
 
-      {/* Overlay de desenho e marcações */}
+      {/* Overlay de marcação — cobre 100% do iframe, coordenadas normalizadas */}
       <div
         ref={overlayRef}
         style={{
           position: "absolute",
           inset: 0,
           cursor: activeAreaId ? "crosshair" : "default",
+          pointerEvents: activeAreaId ? "auto" : "none",
         }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
@@ -91,14 +123,15 @@ export default function BlueprintCanvas({ activeAreaId, areas, pdfUrl, onRegionD
               key={area.id}
               style={{
                 position: "absolute",
-                left: `${r.x}px`,
-                top: `${r.y}px`,
-                width: `${r.width}px`,
-                height: `${r.height}px`,
+                left: toPercent(r.x),
+                top: toPercent(r.y),
+                width: toPercent(r.width),
+                height: toPercent(r.height),
                 border: `2px dashed ${c.border}`,
                 backgroundColor: c.bg,
                 borderRadius: "3px",
                 pointerEvents: activeAreaId ? "none" : "auto",
+                boxSizing: "border-box",
               }}
               onMouseEnter={() => setHoveredId(area.id)}
               onMouseLeave={() => setHoveredId(null)}
@@ -137,10 +170,10 @@ export default function BlueprintCanvas({ activeAreaId, areas, pdfUrl, onRegionD
             <div
               style={{
                 position: "absolute",
-                left: `${inProgress.x}px`,
-                top: `${inProgress.y}px`,
-                width: `${inProgress.width}px`,
-                height: `${inProgress.height}px`,
+                left: toPercent(inProgress.x),
+                top: toPercent(inProgress.y),
+                width: toPercent(inProgress.width),
+                height: toPercent(inProgress.height),
                 border: `2px dashed ${c.border}`,
                 backgroundColor: c.bg,
                 borderRadius: "3px",

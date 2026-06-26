@@ -184,7 +184,8 @@ export default function Configuracao() {
             projetistaId: pid,
             name: r.nome_regiao,
             color: r.cor_marcador || "blue",
-            rect: r.largura > 0 ? { x: r.coordenada_x, y: r.coordenada_y, width: r.largura, height: r.altura } : null,
+            // Coordenadas normalizadas (0..1). Valores >= 1 são legados em px — descartamos.
+            rect: (r.largura > 0 && r.largura < 1) ? { x: r.coordenada_x, y: r.coordenada_y, width: r.largura, height: r.altura } : null,
           })));
       } catch {
         setAreas([]);
@@ -229,11 +230,12 @@ export default function Configuracao() {
     const area = areas.find(a => a.id === areaId);
     if (!area) return;
     setSaving(true);
+    // Salva coordenadas normalizadas (0..1) com 6 casas decimais de precisão
     await db.updateGabarito(area.recordId, {
-      coordenada_x: Math.round(rect.x),
-      coordenada_y: Math.round(rect.y),
-      largura: Math.round(rect.width),
-      altura: Math.round(rect.height),
+      coordenada_x: parseFloat(rect.x.toFixed(6)),
+      coordenada_y: parseFloat(rect.y.toFixed(6)),
+      largura: parseFloat(rect.width.toFixed(6)),
+      altura: parseFloat(rect.height.toFixed(6)),
     });
     setAreas(prev => prev.map(a => a.id === areaId ? { ...a, rect } : a));
     setActiveAreaId(null);
