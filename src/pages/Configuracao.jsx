@@ -267,16 +267,30 @@ export default function Configuracao() {
     setSaving(true);
     const pid = await resolveProjetistaId();
     const funcaoMeta = getFuncaoMeta(funcao);
-    const created = await db.createGabarito({
-      id_projetista: pid,
-      nome_regiao: name,
-      cor_marcador: color,
-      tag_funcao: funcao,
-      coordenada_x: parseFloat(rect.x.toFixed(6)),
-      coordenada_y: parseFloat(rect.y.toFixed(6)),
-      largura: parseFloat(rect.width.toFixed(6)),
-      altura: parseFloat(rect.height.toFixed(6)),
-    });
+    // Try with tag_funcao first; if column doesn't exist yet, retry without it
+    let created;
+    try {
+      created = await db.createGabarito({
+        id_projetista: pid,
+        nome_regiao: name,
+        cor_marcador: color,
+        tag_funcao: funcao,
+        coordenada_x: parseFloat(rect.x.toFixed(6)),
+        coordenada_y: parseFloat(rect.y.toFixed(6)),
+        largura: parseFloat(rect.width.toFixed(6)),
+        altura: parseFloat(rect.height.toFixed(6)),
+      });
+    } catch {
+      created = await db.createGabarito({
+        id_projetista: pid,
+        nome_regiao: name,
+        cor_marcador: color,
+        coordenada_x: parseFloat(rect.x.toFixed(6)),
+        coordenada_y: parseFloat(rect.y.toFixed(6)),
+        largura: parseFloat(rect.width.toFixed(6)),
+        altura: parseFloat(rect.height.toFixed(6)),
+      });
+    }
     setAreas(prev => [...prev, {
       id: created.id,
       recordId: created.id,
