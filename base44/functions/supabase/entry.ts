@@ -1,34 +1,36 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
-
-async function supabaseRequest(path, method = "GET", body = null) {
-  const baseUrl = (SUPABASE_URL || "").replace(/\/$/, "");
-  const res = await fetch(`${baseUrl}/rest/v1/${path}`, {
-    method,
-    headers: {
-      "apikey": SUPABASE_ANON_KEY,
-      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-      "Content-Type": "application/json",
-      "Prefer": method === "POST" ? "return=representation" : "return=representation",
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const text = await res.text();
-  let data;
-  try { data = JSON.parse(text); } catch { data = text; }
-  if (!res.ok) throw new Error(JSON.stringify(data));
-  return data;
-}
-
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
+    const baseUrl = (SUPABASE_URL || "").replace(/\/$/, "");
+
+    async function supabaseRequest(path, method = "GET", body = null) {
+      const res = await fetch(`${baseUrl}/rest/v1/${path}`, {
+        method,
+        headers: {
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+          "Content-Type": "application/json",
+          "Prefer": "return=representation",
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = text; }
+      if (!res.ok) throw new Error(JSON.stringify(data));
+      return data;
+    }
+
     const { action, table, data, filters } = await req.json();
+    console.log("DEBUG baseUrl:", baseUrl);
+    console.log("DEBUG full path:", `${baseUrl}/rest/v1/${table}`);
 
     if (action === "select") {
       const params = new URLSearchParams({ select: "*" });
