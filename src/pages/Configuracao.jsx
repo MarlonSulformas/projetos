@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Link } from "react-router-dom";
 import { db } from "@/lib/supabaseClient";
 import { Plus, ArrowRight, Target, CheckCircle2, Clock, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -366,10 +367,12 @@ export default function Configuracao() {
             <p className="text-xs text-[#6B6B72] mt-0.5">Indique em quais regiões da folha padrão ficam os blocos principais de informação.</p>
           </div>
         </div>
-        <Button className="h-9 bg-[#1D4ED8] hover:bg-[#1E40AF] text-white rounded-xl text-sm font-medium shadow-sm gap-2 px-4 flex-shrink-0">
-          Avançar para Regras (Passo 2)
-          <ArrowRight className="w-4 h-4" />
-        </Button>
+        <Link to="/regra-secao">
+          <Button className="h-9 bg-[#1D4ED8] hover:bg-[#1E40AF] text-white rounded-xl text-sm font-medium shadow-sm gap-2 px-4 flex-shrink-0">
+            Avançar para Regras (Passo 2)
+            <ArrowRight className="w-4 h-4" />
+          </Button>
+        </Link>
       </motion.div>
 
       {/* Body — 25/75 split */}
