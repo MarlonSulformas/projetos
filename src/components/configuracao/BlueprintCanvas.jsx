@@ -51,15 +51,20 @@ export default function BlueprintCanvas({ activeAreaId, areas, pdfUrl, onRegionD
       const scaleY = containerH / viewport.height;
       const scale = Math.min(scaleX, scaleY);
 
-      const scaledViewport = page.getViewport({ scale });
-      const canvasW = Math.floor(scaledViewport.width);
-      const canvasH = Math.floor(scaledViewport.height);
+      const dpr = window.devicePixelRatio || 2;
+      const renderScale = scale * dpr;
+      const scaledViewport = page.getViewport({ scale: renderScale });
+      const canvasW = Math.floor(scale * viewport.width);
+      const canvasH = Math.floor(scale * viewport.height);
 
       const canvas = canvasRef.current;
       if (!canvas || cancelled) return;
 
-      canvas.width = canvasW;
-      canvas.height = canvasH;
+      // Canvas interno em alta resolução, exibido no tamanho lógico via CSS
+      canvas.width = Math.floor(scaledViewport.width);
+      canvas.height = Math.floor(scaledViewport.height);
+      canvas.style.width = `${canvasW}px`;
+      canvas.style.height = `${canvasH}px`;
       setCanvasSize({ w: canvasW, h: canvasH });
 
       const ctx = canvas.getContext("2d");
