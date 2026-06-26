@@ -1,173 +1,218 @@
-import React, { useRef, useState, useEffect, useCallback } from "react";
+import React, { useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
 
-const REGION_STYLES = {
-  blue:   { rect: "border-blue-500 bg-blue-400/15", tag: "bg-blue-500 text-white" },
-  green:  { rect: "border-green-500 bg-green-400/15", tag: "bg-green-500 text-white" },
-  violet: { rect: "border-violet-500 bg-violet-400/15", tag: "bg-violet-500 text-white" },
-  slate:  { rect: "border-slate-400 bg-slate-300/20", tag: "bg-slate-500 text-white" },
+const SHEET_W = 880;
+const SHEET_H = 580;
+
+const COLOR_MAP = {
+  blue:   { border: "#3B82F6", bg: "rgba(59,130,246,0.12)",   tag: "#1D4ED8", tagBg: "rgba(219,234,254,0.95)" },
+  green:  { border: "#22C55E", bg: "rgba(34,197,94,0.12)",    tag: "#15803D", tagBg: "rgba(220,252,231,0.95)" },
+  orange: { border: "#F97316", bg: "rgba(249,115,22,0.12)",   tag: "#C2410C", tagBg: "rgba(255,237,213,0.95)" },
+  violet: { border: "#A855F7", bg: "rgba(168,85,247,0.12)",   tag: "#7E22CE", tagBg: "rgba(243,232,255,0.95)" },
 };
 
-const SHEET_W = 660;
-const SHEET_H = 500;
+function getColor(id) { return COLOR_MAP[id] || COLOR_MAP.blue; }
 
-export default function BlueprintCanvas({ zoom, activeRegion, regions, onRegionDrawn, onRegionDeleted }) {
-  const containerRef = useRef(null);
+export default function BlueprintCanvas({ zoom, activeAreaId, areas, onRegionDrawn, onRegionDeleted }) {
   const sheetRef = useRef(null);
-  const [drawing, setDrawing] = useState(null); // { startX, startY, currentX, currentY }
+  const [drawing, setDrawing] = useState(null);
   const [hoveredId, setHoveredId] = useState(null);
-
   const scale = zoom / 100;
-  const sheetW = SHEET_W * scale;
-  const sheetH = SHEET_H * scale;
 
-  function getRelativePos(e) {
+  function getPos(e) {
     const rect = sheetRef.current.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / scale;
-    const y = (e.clientY - rect.top) / scale;
-    return { x: Math.max(0, Math.min(x, SHEET_W)), y: Math.max(0, Math.min(y, SHEET_H)) };
+    return {
+      x: Math.max(0, Math.min((e.clientX - rect.left) / scale, SHEET_W)),
+      y: Math.max(0, Math.min((e.clientY - rect.top) / scale, SHEET_H)),
+    };
   }
 
-  function handleMouseDown(e) {
-    if (!activeRegion) return;
+  function onMouseDown(e) {
+    if (!activeAreaId) return;
     e.preventDefault();
-    const pos = getRelativePos(e);
-    setDrawing({ startX: pos.x, startY: pos.y, currentX: pos.x, currentY: pos.y });
+    const p = getPos(e);
+    setDrawing({ sx: p.x, sy: p.y, cx: p.x, cy: p.y });
   }
-
-  function handleMouseMove(e) {
+  function onMouseMove(e) {
     if (!drawing) return;
-    const pos = getRelativePos(e);
-    setDrawing(d => ({ ...d, currentX: pos.x, currentY: pos.y }));
+    const p = getPos(e);
+    setDrawing(d => ({ ...d, cx: p.x, cy: p.y }));
   }
-
-  function handleMouseUp() {
-    if (!drawing || !activeRegion) return;
-    const x = Math.min(drawing.startX, drawing.currentX);
-    const y = Math.min(drawing.startY, drawing.currentY);
-    const w = Math.abs(drawing.currentX - drawing.startX);
-    const h = Math.abs(drawing.currentY - drawing.startY);
-    if (w > 10 && h > 10) {
-      onRegionDrawn(activeRegion, { x, y, width: w, height: h });
-    }
+  function onMouseUp() {
+    if (!drawing || !activeAreaId) return;
+    const x = Math.min(drawing.sx, drawing.cx);
+    const y = Math.min(drawing.sy, drawing.cy);
+    const w = Math.abs(drawing.cx - drawing.sx);
+    const h = Math.abs(drawing.cy - drawing.sy);
+    if (w > 12 && h > 12) onRegionDrawn(activeAreaId, { x, y, width: w, height: h });
     setDrawing(null);
   }
 
-  // Current in-progress rect
-  const inProgressRect = drawing ? {
-    x: Math.min(drawing.startX, drawing.currentX),
-    y: Math.min(drawing.startY, drawing.currentY),
-    width: Math.abs(drawing.currentX - drawing.startX),
-    height: Math.abs(drawing.currentY - drawing.startY),
+  const inProgress = drawing ? {
+    x: Math.min(drawing.sx, drawing.cx), y: Math.min(drawing.sy, drawing.cy),
+    width: Math.abs(drawing.cx - drawing.sx), height: Math.abs(drawing.cy - drawing.sy),
   } : null;
 
-  const mappedRegions = regions.filter(r => r.rect);
-  const activeRegionData = activeRegion ? regions.find(r => r.id === activeRegion) : null;
+  const activeArea = activeAreaId ? areas.find(a => a.id === activeAreaId) : null;
 
   return (
-    <div ref={containerRef} className="w-full h-full flex items-center justify-center bg-[#F4F4F6] overflow-auto p-6">
+    <div className="w-full h-full flex items-start justify-center bg-[#F0F2F5] overflow-auto p-5">
       <div
         ref={sheetRef}
-        className="relative bg-white shadow-md flex-shrink-0 select-none"
+        className="relative bg-white shadow-lg flex-shrink-0"
         style={{
-          width: `${sheetW}px`,
-          height: `${sheetH}px`,
-          border: "1px solid #D1D5DB",
-          cursor: activeRegion ? "crosshair" : "default",
+          width: `${SHEET_W * scale}px`,
+          height: `${SHEET_H * scale}px`,
+          border: "1px solid #C9CDD4",
+          cursor: activeAreaId ? "crosshair" : "default",
           transition: "width 0.2s, height 0.2s",
         }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={onMouseUp}
+        onMouseLeave={onMouseUp}
       >
-        {/* SVG drawing */}
-        <svg width="100%" height="100%" viewBox={`0 0 ${SHEET_W} ${SHEET_H}`} xmlns="http://www.w3.org/2000/svg" className="absolute inset-0 pointer-events-none">
-          <rect x="8" y="8" width="644" height="484" fill="none" stroke="#9CA3AF" strokeWidth="1.5" />
-          <rect x="12" y="12" width="636" height="476" fill="none" stroke="#E5E7EB" strokeWidth="0.5" />
-          <rect x="8" y="8" width="644" height="42" fill="#F9FAFB" stroke="#9CA3AF" strokeWidth="1" />
-          <text x="334" y="24" textAnchor="middle" fontSize="10" fontWeight="700" fill="#1F2937" fontFamily="Inter,sans-serif">PROJETO ESTRUTURAL — CADERNO DE PILARES</text>
-          <text x="334" y="38" textAnchor="middle" fontSize="7.5" fill="#6B7280" fontFamily="Inter,sans-serif">OBRA: Edifício Torres do Rio  |  PAVIMENTO: 3º AO 8º  |  FOLHA: 07/24  |  REV: C</text>
-          <text x="20" y="67" fontSize="7.5" fontWeight="600" fill="#6B7280" fontFamily="Inter,sans-serif">VISTA FRONTAL — PAINÉIS P-07 A P-12</text>
-          {[0,1,2,3,4,5].map(i => (
-            <g key={i}>
-              <rect x={22 + i*104} y={74} width={94} height={200} fill={["#EFF6FF","#F0FDF4","#FFF7ED","#FDF4FF","#FFFBEB","#F0F9FF"][i]} stroke="#9CA3AF" strokeWidth="0.8" />
-              {[0,1,2,3,4].map(j => (
-                <rect key={j} x={30 + i*104} y={82 + j*36} width={78} height={24} fill="none" stroke={["#60A5FA","#34D399","#FB923C","#A78BFA","#FBBF24","#38BDF8"][i]} strokeWidth="1" />
-              ))}
-              <text x={69 + i*104} y={284} textAnchor="middle" fontSize="7" fill="#374151" fontFamily="Inter,sans-serif">{`P-0${7+i}`}</text>
-            </g>
-          ))}
-          <text x="20" y="305" fontSize="7.5" fontWeight="600" fill="#6B7280" fontFamily="Inter,sans-serif">DETALHE SEÇÃO TRANSVERSAL</text>
-          {[0,1,2].map(i => (
-            <g key={i}>
-              <rect x={22 + i*110} y={312} width={94} height={65} fill="#FAFAFA" stroke="#9CA3AF" strokeWidth="0.8" />
-              <line x1={22+i*110} y1={344} x2={116+i*110} y2={344} stroke="#D1D5DB" strokeWidth="0.5" />
-              <line x1={69+i*110} y1={312} x2={69+i*110} y2={377} stroke="#D1D5DB" strokeWidth="0.5" />
-              {[0,1,2,3].map(j => (
-                <circle key={j} cx={35+j*25+i*110} cy={328} r="4" fill="#F3F4F6" stroke="#4B5563" strokeWidth="1" />
-              ))}
-              <text x={69+i*110} y={390} textAnchor="middle" fontSize="6.5" fill="#6B7280" fontFamily="Inter,sans-serif">{`Seção S-0${i+1} | e=20cm`}</text>
-            </g>
-          ))}
-          <rect x="8" y="430" width="644" height="62" fill="#F9FAFB" stroke="#9CA3AF" strokeWidth="1" />
-          <line x1="210" y1="430" x2="210" y2="492" stroke="#D1D5DB" strokeWidth="0.8" />
-          <line x1="420" y1="430" x2="420" y2="492" stroke="#D1D5DB" strokeWidth="0.8" />
-          <text x="109" y="446" textAnchor="middle" fontSize="8" fontWeight="700" fill="#1F2937" fontFamily="Inter,sans-serif">ESTRUTURAS APEX ENG. LTDA.</text>
-          <text x="109" y="460" textAnchor="middle" fontSize="7" fill="#4B5563" fontFamily="Inter,sans-serif">Resp.: Eng. A. Silva  |  CREA: 12345</text>
-          <text x="315" y="446" textAnchor="middle" fontSize="8" fontWeight="600" fill="#1F2937" fontFamily="Inter,sans-serif">OBRA: Edifício Torres do Rio</text>
-          <text x="315" y="460" textAnchor="middle" fontSize="7" fill="#4B5563" fontFamily="Inter,sans-serif">São Paulo - SP  |  Contr.: 2024/0087</text>
-          <text x="540" y="446" textAnchor="middle" fontSize="8" fontWeight="600" fill="#1F2937" fontFamily="Inter,sans-serif">Rev. C  |  Folha 07/24</text>
-          <text x="540" y="460" textAnchor="middle" fontSize="7" fill="#4B5563" fontFamily="Inter,sans-serif">Arquivo: EST-PILARES-R3</text>
+        {/* Blueprint SVG */}
+        <svg
+          width="100%" height="100%"
+          viewBox={`0 0 ${SHEET_W} ${SHEET_H}`}
+          xmlns="http://www.w3.org/2000/svg"
+          className="absolute inset-0 pointer-events-none"
+        >
+          {/* Frame */}
+          <rect x="10" y="10" width={SHEET_W-20} height={SHEET_H-20} fill="none" stroke="#9CA3AF" strokeWidth="1.5"/>
+          <rect x="14" y="14" width={SHEET_W-28} height={SHEET_H-28} fill="none" stroke="#E5E7EB" strokeWidth="0.5"/>
+
+          {/* Header */}
+          <rect x="10" y="10" width={SHEET_W-20} height="46" fill="#F9FAFB" stroke="#9CA3AF" strokeWidth="1"/>
+          <text x={SHEET_W/2} y="27" textAnchor="middle" fontSize="11" fontWeight="700" fill="#1F2937" fontFamily="Inter,sans-serif">PROJETO ESTRUTURAL — CADERNO DE PILARES</text>
+          <text x={SHEET_W/2} y="43" textAnchor="middle" fontSize="8" fill="#6B7280" fontFamily="Inter,sans-serif">OBRA: Edifício Torres do Rio  |  PAVIMENTO: 3º AO 8º  |  FOLHA: 07/24  |  REV: C</text>
+
+          {/* Vista Frontal label */}
+          <text x="22" y="74" fontSize="8" fontWeight="600" fill="#6B7280" fontFamily="Inter,sans-serif">VISTA FRONTAL — PAINÉIS P-07 A P-12</text>
+
+          {/* 7 panels */}
+          {[0,1,2,3,4,5,6].map(i => {
+            const colors = ["#EFF6FF","#F0FDF4","#FFF7ED","#FDF4FF","#FFFBEB","#F0F9FF","#FFF1F2"];
+            const strokes = ["#60A5FA","#34D399","#FB923C","#A78BFA","#FBBF24","#38BDF8","#F472B6"];
+            const px = 22 + i * 120;
+            return (
+              <g key={i}>
+                <rect x={px} y={80} width={110} height={210} fill={colors[i]} stroke="#9CA3AF" strokeWidth="0.8"/>
+                {[0,1,2,3,4].map(j => (
+                  <rect key={j} x={px+8} y={88+j*38} width={94} height={28} fill="none" stroke={strokes[i]} strokeWidth="1.2"/>
+                ))}
+                <text x={px+55} y={300} textAnchor="middle" fontSize="7.5" fill="#374151" fontFamily="Inter,sans-serif">{`P-0${7+i}`}</text>
+              </g>
+            );
+          })}
+
+          {/* Section detail label */}
+          <text x="22" y="330" fontSize="8" fontWeight="600" fill="#6B7280" fontFamily="Inter,sans-serif">DETALHE SEÇÃO TRANSVERSAL</text>
+
+          {/* 4 sections */}
+          {[0,1,2,3].map(i => {
+            const px = 22 + i*130;
+            return (
+              <g key={i}>
+                <rect x={px} y={338} width={114} height={76} fill="#FAFAFA" stroke="#9CA3AF" strokeWidth="0.8"/>
+                <line x1={px} y1={376} x2={px+114} y2={376} stroke="#D1D5DB" strokeWidth="0.5"/>
+                <line x1={px+57} y1={338} x2={px+57} y2={414} stroke="#D1D5DB" strokeWidth="0.5"/>
+                {[0,1,2,3,4].map(j => (
+                  <circle key={j} cx={px+15+j*22} cy={356} r="5" fill="#F3F4F6" stroke="#4B5563" strokeWidth="1.2"/>
+                ))}
+                <text x={px+57} y={428} textAnchor="middle" fontSize="7" fill="#6B7280" fontFamily="Inter,sans-serif">{`Seção S-0${i+1} | e=20cm`}</text>
+              </g>
+            );
+          })}
+
+          {/* Title block */}
+          <rect x="10" y={SHEET_H-82} width={SHEET_W-20} height="72" fill="#F9FAFB" stroke="#9CA3AF" strokeWidth="1"/>
+          <line x1={10+(SHEET_W-20)/3} y1={SHEET_H-82} x2={10+(SHEET_W-20)/3} y2={SHEET_H-10} stroke="#D1D5DB" strokeWidth="0.8"/>
+          <line x1={10+(SHEET_W-20)*2/3} y1={SHEET_H-82} x2={10+(SHEET_W-20)*2/3} y2={SHEET_H-10} stroke="#D1D5DB" strokeWidth="0.8"/>
+
+          <text x={10+(SHEET_W-20)/6} y={SHEET_H-63} textAnchor="middle" fontSize="8.5" fontWeight="700" fill="#1F2937" fontFamily="Inter,sans-serif">ESTRUTURAS APEX ENG. LTDA.</text>
+          <text x={10+(SHEET_W-20)/6} y={SHEET_H-49} textAnchor="middle" fontSize="7.5" fill="#4B5563" fontFamily="Inter,sans-serif">Resp.: Eng. A. Silva | CREA: 12345</text>
+          <text x={10+(SHEET_W-20)/6} y={SHEET_H-35} textAnchor="middle" fontSize="7.5" fill="#4B5563" fontFamily="Inter,sans-serif">Data: Mar/2024</text>
+
+          <text x={10+(SHEET_W-20)/2} y={SHEET_H-63} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#1F2937" fontFamily="Inter,sans-serif">OBRA: Edifício Torres do Rio</text>
+          <text x={10+(SHEET_W-20)/2} y={SHEET_H-49} textAnchor="middle" fontSize="7.5" fill="#4B5563" fontFamily="Inter,sans-serif">São Paulo - SP | Contr.: 2024/0087</text>
+          <text x={10+(SHEET_W-20)/2} y={SHEET_H-35} textAnchor="middle" fontSize="7.5" fill="#4B5563" fontFamily="Inter,sans-serif">Pav: 3º ao 8º | Pilares: P-07/P-13</text>
+
+          <text x={10+(SHEET_W-20)*5/6} y={SHEET_H-63} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#1F2937" fontFamily="Inter,sans-serif">Rev. C | Folha 07/24</text>
+          <text x={10+(SHEET_W-20)*5/6} y={SHEET_H-49} textAnchor="middle" fontSize="7.5" fill="#4B5563" fontFamily="Inter,sans-serif">Aprovado: Dir. Técnica</text>
+          <text x={10+(SHEET_W-20)*5/6} y={SHEET_H-35} textAnchor="middle" fontSize="7.5" fill="#4B5563" fontFamily="Inter,sans-serif">Arquivo: EST-PILARES-R3</text>
         </svg>
 
-        {/* Drawn regions */}
-        {mappedRegions.map(region => {
-          const s = REGION_STYLES[region.color];
-          const r = region.rect;
-          const isHovered = hoveredId === region.id;
+        {/* Drawn regions as absolutely positioned divs */}
+        {areas.filter(a => a.rect).map(area => {
+          const c = getColor(area.color);
+          const r = area.rect;
+          const isHovered = hoveredId === area.id;
+          const left = `${(r.x / SHEET_W) * 100}%`;
+          const top = `${(r.y / SHEET_H) * 100}%`;
+          const width = `${(r.width / SHEET_W) * 100}%`;
+          const height = `${(r.height / SHEET_H) * 100}%`;
+
           return (
             <div
-              key={region.id}
-              className={`absolute border-2 border-dashed rounded-sm ${s.rect} group`}
+              key={area.id}
               style={{
-                left: `${(r.x / SHEET_W) * 100}%`,
-                top: `${(r.y / SHEET_H) * 100}%`,
-                width: `${(r.width / SHEET_W) * 100}%`,
-                height: `${(r.height / SHEET_H) * 100}%`,
-                pointerEvents: activeRegion ? "none" : "auto",
+                position: "absolute", left, top, width, height,
+                border: `2px dashed ${c.border}`,
+                backgroundColor: c.bg,
+                borderRadius: "3px",
+                pointerEvents: activeAreaId ? "none" : "auto",
               }}
-              onMouseEnter={() => setHoveredId(region.id)}
+              onMouseEnter={() => setHoveredId(area.id)}
               onMouseLeave={() => setHoveredId(null)}
             >
-              <span className={`absolute top-1.5 left-2 text-[10px] font-semibold px-1.5 py-0.5 rounded ${s.tag}`}>
-                Região {region.id}: {region.label}
+              <span style={{
+                position: "absolute", top: "4px", left: "6px",
+                fontSize: "10px", fontWeight: "600",
+                color: c.tag, backgroundColor: c.tagBg,
+                padding: "2px 6px", borderRadius: "4px",
+                whiteSpace: "nowrap",
+              }}>
+                {area.name}
               </span>
               {isHovered && (
                 <button
-                  onClick={(e) => { e.stopPropagation(); onRegionDeleted(region.id); }}
-                  className="absolute top-1.5 right-1.5 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded flex items-center justify-center shadow-md transition-colors"
-                  title="Apagar demarcação"
+                  onClick={e => { e.stopPropagation(); onRegionDeleted(area.id); }}
+                  style={{
+                    position: "absolute", top: "4px", right: "4px",
+                    width: "22px", height: "22px",
+                    background: "#EF4444", borderRadius: "4px",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    cursor: "pointer", border: "none",
+                  }}
                 >
-                  <Trash2 className="w-3 h-3" />
+                  <Trash2 style={{ width: "12px", height: "12px", color: "white" }} />
                 </button>
               )}
             </div>
           );
         })}
 
-        {/* In-progress drawing rect */}
-        {inProgressRect && activeRegionData && (
-          <div
-            className={`absolute border-2 border-dashed pointer-events-none ${REGION_STYLES[activeRegionData.color].rect}`}
-            style={{
-              left: `${(inProgressRect.x / SHEET_W) * 100}%`,
-              top: `${(inProgressRect.y / SHEET_H) * 100}%`,
-              width: `${(inProgressRect.width / SHEET_W) * 100}%`,
-              height: `${(inProgressRect.height / SHEET_H) * 100}%`,
-            }}
-          />
-        )}
+        {/* In-progress rect */}
+        {inProgress && activeArea && (() => {
+          const c = getColor(activeArea.color);
+          return (
+            <div
+              style={{
+                position: "absolute",
+                left: `${(inProgress.x / SHEET_W) * 100}%`,
+                top: `${(inProgress.y / SHEET_H) * 100}%`,
+                width: `${(inProgress.width / SHEET_W) * 100}%`,
+                height: `${(inProgress.height / SHEET_H) * 100}%`,
+                border: `2px dashed ${c.border}`,
+                backgroundColor: c.bg,
+                borderRadius: "3px",
+                pointerEvents: "none",
+              }}
+            />
+          );
+        })()}
       </div>
     </div>
   );

@@ -1,331 +1,425 @@
 import React, { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { base44 } from "@/api/base44Client";
-import {
-  ChevronDown, Upload, ZoomIn, ZoomOut, Crosshair,
-  CheckCircle2, Circle, ArrowRight, Target
-} from "lucide-react";
+import { Plus, ArrowRight, Target, CheckCircle2, Clock, Trash2, Upload, ZoomIn, ZoomOut, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import BlueprintCanvas from "@/components/configuracao/BlueprintCanvas";
 
 const PROJETISTAS_LIST = ["Estruturas Apex", "Engenharia Delta", "Concretar Estrutural", "Prémold Tech"];
 const CADERNOS = ["Caderno de Pilares", "Caderno de Vigas", "Caderno de Lajes", "Caderno de Painéis"];
 
-const REGION_DEFINITIONS = [
-  { id: 1, label: "Vista Frontal dos Painéis", description: "Desenhos coloridos com sarrafos e painéis", color: "blue" },
-  { id: 2, label: "Detalhe de Seção Transversal", description: "Espessura e quantidade de sarrafos por extremidade", color: "green" },
-  { id: 3, label: "Tabela de Resumo / Quantitativos", description: "Totais e quantitativos da folha (se houver)", color: "violet" },
-  { id: 4, label: "Carimbo de Identificação", description: "Nome da obra, pavimento e número do pilar", color: "slate" },
+const COLOR_OPTIONS = [
+  { id: "blue",   label: "Azul",   cls: "bg-blue-500",   border: "border-blue-500",   light: "bg-blue-50" },
+  { id: "green",  label: "Verde",  cls: "bg-green-500",  border: "border-green-500",  light: "bg-green-50" },
+  { id: "orange", label: "Laranja",cls: "bg-orange-500", border: "border-orange-500", light: "bg-orange-50" },
+  { id: "violet", label: "Roxo",   cls: "bg-violet-500", border: "border-violet-500", light: "bg-violet-50" },
 ];
 
-const COLOR_STYLES = {
-  blue:   { active: "border-blue-500 bg-blue-50",   badge: "bg-blue-100 text-blue-700 border-blue-200",   btn: "bg-blue-500 hover:bg-blue-600 text-white" },
-  green:  { active: "border-green-500 bg-green-50",  badge: "bg-green-100 text-green-700 border-green-200", btn: "bg-green-500 hover:bg-green-600 text-white" },
-  violet: { active: "border-violet-500 bg-violet-50", badge: "bg-violet-100 text-violet-700 border-violet-200", btn: "bg-violet-500 hover:bg-violet-600 text-white" },
-  slate:  { active: "border-slate-400 bg-slate-50",  badge: "bg-slate-100 text-slate-600 border-slate-200",  btn: "bg-slate-500 hover:bg-slate-600 text-white" },
-};
+function getColorMeta(id) {
+  return COLOR_OPTIONS.find(c => c.id === id) || COLOR_OPTIONS[0];
+}
 
-function SelectField({ value, onChange, options, placeholder }) {
+function NewAreaModal({ onConfirm, onClose }) {
+  const [name, setName] = useState("");
+  const [color, setColor] = useState("blue");
+  const inputRef = useRef(null);
+
+  useEffect(() => { setTimeout(() => inputRef.current?.focus(), 50); }, []);
+
+  function submit(e) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    onConfirm({ name: name.trim(), color });
+  }
+
   return (
-    <div className="relative">
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full appearance-none bg-white border border-[#E5E5E8] text-sm text-[#1F1F24] rounded-lg px-3 py-2 pr-8 h-9 focus:outline-none focus:ring-1 focus:ring-[#3B82F6] focus:border-[#3B82F6] transition-colors cursor-pointer"
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm" onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 8 }}
+        transition={{ duration: 0.18 }}
+        className="bg-white rounded-2xl shadow-xl border border-[#E5E5E8] w-[340px] p-5"
+        onClick={e => e.stopPropagation()}
       >
-        <option value="" disabled>{placeholder}</option>
-        {options.map((o) => <option key={o} value={o}>{o}</option>)}
-      </select>
-      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6B6B72] pointer-events-none" />
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-sm font-semibold text-[#0F0F0F]">Nova Área de Captura</p>
+          <button onClick={onClose} className="w-6 h-6 rounded-md flex items-center justify-center text-[#9CA3AF] hover:bg-[#F1F1F4] transition-colors">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <form onSubmit={submit} className="flex flex-col gap-4">
+          <div>
+            <label className="text-[11px] font-semibold text-[#6B6B72] uppercase tracking-wider block mb-1.5">
+              Nome da Área
+            </label>
+            <input
+              ref={inputRef}
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Ex: Vista Frontal, Carimbo..."
+              className="w-full border border-[#E5E5E8] rounded-lg px-3 py-2 text-sm text-[#1F1F24] focus:outline-none focus:ring-1 focus:ring-[#3B82F6] focus:border-[#3B82F6] transition-colors"
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold text-[#6B6B72] uppercase tracking-wider block mb-2">
+              Cor do Retângulo
+            </label>
+            <div className="flex gap-2">
+              {COLOR_OPTIONS.map(c => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setColor(c.id)}
+                  className={`flex-1 flex flex-col items-center gap-1.5 py-2 rounded-xl border-2 transition-all ${
+                    color === c.id ? `${c.border} ${c.light}` : "border-[#E5E5E8] bg-white hover:border-[#D4D4D8]"
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded-full ${c.cls}`} />
+                  <span className="text-[10px] font-medium text-[#4A4A52]">{c.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex gap-2 mt-1">
+            <button type="button" onClick={onClose} className="flex-1 h-9 rounded-xl border border-[#E5E5E8] text-sm font-medium text-[#4A4A52] hover:bg-[#F1F1F4] transition-colors">
+              Cancelar
+            </button>
+            <button type="submit" disabled={!name.trim()} className="flex-1 h-9 rounded-xl bg-[#3B82F6] hover:bg-[#2563EB] disabled:opacity-50 text-sm font-medium text-white transition-colors">
+              Criar Área
+            </button>
+          </div>
+        </form>
+      </motion.div>
     </div>
   );
 }
 
-function RegionCard({ region, active, onDemarcar }) {
-  const s = COLOR_STYLES[region.color];
+function AreaCard({ area, active, onTarget, onDelete }) {
+  const c = getColorMeta(area.color);
   return (
-    <div
-      className={`flex items-center gap-3 px-3 py-3 rounded-xl border transition-all duration-150 ${
-        active ? s.active : "border-[#E5E5E8] bg-white hover:border-[#D4D4D8]"
+    <motion.div
+      initial={{ opacity: 0, x: -8 }}
+      animate={{ opacity: 1, x: 0 }}
+      className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all duration-150 group ${
+        active ? `${c.border} ${c.light} border-2` : "border-[#E5E5E8] bg-white hover:border-[#D4D4D8]"
       }`}
     >
-      {/* Number */}
-      <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 text-[11px] font-bold border ${s.badge}`}>
-        {region.id}
-      </div>
+      {/* Color dot */}
+      <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${c.cls}`} />
 
-      {/* Label */}
-      <p className="flex-1 text-[13px] font-medium text-[#1F1F24] leading-tight truncate">{region.label}</p>
+      {/* Name */}
+      <p className="flex-1 text-[12px] font-medium text-[#1F1F24] truncate">{area.name}</p>
 
-      {/* Status badge */}
-      {region.rect ? (
-        <span className="flex items-center gap-1 text-[10px] font-semibold text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full whitespace-nowrap">
-          <CheckCircle2 className="w-3 h-3" /> Mapeado
+      {/* Status */}
+      {area.rect ? (
+        <span className="flex items-center gap-1 text-[10px] font-semibold text-green-600 whitespace-nowrap">
+          <CheckCircle2 className="w-3 h-3" />
         </span>
       ) : (
-        <span className="flex items-center gap-1 text-[10px] font-medium text-[#9CA3AF] bg-[#F4F4F6] border border-[#E5E5E8] px-2 py-0.5 rounded-full whitespace-nowrap">
-          <Circle className="w-3 h-3" /> Pendente
+        <span className="flex items-center gap-1 text-[10px] text-[#9CA3AF] whitespace-nowrap">
+          <Clock className="w-3 h-3" />
         </span>
       )}
 
-      {/* Demarcar button */}
+      {/* Target button */}
       <button
-        onClick={() => onDemarcar(region.id)}
-        className={`flex items-center gap-1 text-[11px] font-medium px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap flex-shrink-0 ${
+        onClick={() => onTarget(area.id)}
+        title="Demarcar no PDF"
+        className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
           active
             ? "bg-[#3B82F6] text-white"
-            : "bg-white border border-[#E5E5E8] text-[#4A4A52] hover:bg-[#F1F1F4]"
+            : "bg-[#F1F1F4] text-[#6B6B72] hover:bg-[#E5E5E8]"
         }`}
       >
-        <Target className="w-3 h-3" />
-        {active ? "Mapeando..." : "Demarcar"}
+        <Target className="w-3.5 h-3.5" />
       </button>
-    </div>
+
+      {/* Delete */}
+      <button
+        onClick={() => onDelete(area.id)}
+        className="w-7 h-7 rounded-lg flex items-center justify-center text-[#9CA3AF] hover:bg-red-50 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+      >
+        <Trash2 className="w-3 h-3" />
+      </button>
+    </motion.div>
   );
 }
 
 export default function Configuracao() {
   const [projetista, setProjetista] = useState("Estruturas Apex");
   const [caderno, setCaderno] = useState("Caderno de Pilares");
-  const [activeRegion, setActiveRegion] = useState(null);
+  const [areas, setAreas] = useState([]);
+  const [activeAreaId, setActiveAreaId] = useState(null);
   const [zoom, setZoom] = useState(100);
+  const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef(null);
 
-  // regions state: array matching REGION_DEFINITIONS + rect field
-  const [regions, setRegions] = useState(REGION_DEFINITIONS.map(r => ({ ...r, rect: null, recordId: null })));
-
-  // Load saved gabaritos for current projetista + caderno
   useEffect(() => {
     async function load() {
       const records = await base44.entities.GabaritoEspacial.filter({
         projetista_id: projetista,
         tipo_documento: caderno,
       });
-      setRegions(REGION_DEFINITIONS.map(r => {
-        const saved = records.find(rec => rec.nome_regiao === r.label);
-        return {
-          ...r,
-          rect: saved ? { x: saved.coordenada_x, y: saved.coordenada_y, width: saved.largura, height: saved.altura } : null,
-          recordId: saved ? saved.id : null,
-        };
-      }));
-      setActiveRegion(null);
+      setAreas(records.map(r => ({
+        id: r.id,
+        recordId: r.id,
+        name: r.nome_regiao,
+        color: r.color || "blue",
+        rect: r.largura ? { x: r.coordenada_x, y: r.coordenada_y, width: r.largura, height: r.altura } : null,
+      })));
+      setActiveAreaId(null);
     }
     load();
   }, [projetista, caderno]);
 
-  async function handleRegionDrawn(regionId, rect) {
-    const region = regions.find(r => r.id === regionId);
-    if (!region) return;
+  async function handleCreateArea({ name, color }) {
+    setShowModal(false);
     setSaving(true);
-    // If already has a record, delete it first
-    if (region.recordId) {
-      await base44.entities.GabaritoEspacial.delete(region.recordId);
-    }
     const created = await base44.entities.GabaritoEspacial.create({
       projetista_id: projetista,
       tipo_documento: caderno,
-      nome_regiao: region.label,
+      nome_regiao: name,
+      color,
+      coordenada_x: 0,
+      coordenada_y: 0,
+      largura: 0,
+      altura: 0,
+    });
+    setAreas(prev => [...prev, {
+      id: created.id,
+      recordId: created.id,
+      name,
+      color,
+      rect: null,
+    }]);
+    setSaving(false);
+  }
+
+  async function handleRegionDrawn(areaId, rect) {
+    const area = areas.find(a => a.id === areaId);
+    if (!area) return;
+    setSaving(true);
+    await base44.entities.GabaritoEspacial.update(area.recordId, {
       coordenada_x: Math.round(rect.x),
       coordenada_y: Math.round(rect.y),
       largura: Math.round(rect.width),
       altura: Math.round(rect.height),
     });
-    setRegions(prev => prev.map(r =>
-      r.id === regionId ? { ...r, rect, recordId: created.id } : r
-    ));
-    setActiveRegion(null);
+    setAreas(prev => prev.map(a => a.id === areaId ? { ...a, rect } : a));
+    setActiveAreaId(null);
     setSaving(false);
   }
 
-  async function handleRegionDeleted(regionId) {
-    const region = regions.find(r => r.id === regionId);
-    if (!region) return;
-    if (region.recordId) {
-      await base44.entities.GabaritoEspacial.delete(region.recordId);
-    }
-    setRegions(prev => prev.map(r =>
-      r.id === regionId ? { ...r, rect: null, recordId: null } : r
-    ));
+  async function handleRegionDeleted(areaId) {
+    const area = areas.find(a => a.id === areaId);
+    if (!area) return;
+    await base44.entities.GabaritoEspacial.update(area.recordId, {
+      coordenada_x: 0, coordenada_y: 0, largura: 0, altura: 0,
+    });
+    setAreas(prev => prev.map(a => a.id === areaId ? { ...a, rect: null } : a));
   }
 
-  function handleDemarcar(id) {
-    setActiveRegion(activeRegion === id ? null : id);
+  async function handleDeleteArea(areaId) {
+    const area = areas.find(a => a.id === areaId);
+    if (!area) return;
+    await base44.entities.GabaritoEspacial.delete(area.recordId);
+    setAreas(prev => prev.filter(a => a.id !== areaId));
+    if (activeAreaId === areaId) setActiveAreaId(null);
   }
 
-  const mappedCount = regions.filter(r => r.rect).length;
+  function handleTarget(areaId) {
+    setActiveAreaId(prev => prev === areaId ? null : areaId);
+  }
+
+  const mappedCount = areas.filter(a => a.rect).length;
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-      {/* Page header */}
+      {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="px-6 pt-6 pb-4 flex-shrink-0 flex items-start justify-between"
+        className="px-6 pt-5 pb-3 flex-shrink-0 flex items-center justify-between"
       >
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="w-6 h-6 rounded-lg bg-[#3B82F6] flex items-center justify-center">
-              <span className="text-[11px] font-bold text-white">1</span>
-            </div>
-            <h1 className="text-xl font-semibold text-[#0F0F0F]">Mapeamento Espacial do PDF</h1>
-            <span className="text-xs font-medium text-[#6B6B72] bg-[#F1F1F4] px-2.5 py-1 rounded-full">Passo 1 de 3</span>
+        <div className="flex items-center gap-3">
+          <div className="w-6 h-6 rounded-lg bg-[#3B82F6] flex items-center justify-center flex-shrink-0">
+            <span className="text-[11px] font-bold text-white">1</span>
           </div>
-          <p className="text-sm text-[#6B6B72] mt-1 ml-9">
-            Indique em quais regiões da folha padrão ficam os blocos principais de informação.
-          </p>
+          <div>
+            <div className="flex items-center gap-2.5">
+              <h1 className="text-lg font-semibold text-[#0F0F0F]">Mapeamento Espacial do PDF</h1>
+              <span className="text-[11px] font-medium text-[#6B6B72] bg-[#F1F1F4] px-2 py-0.5 rounded-full">Passo 1 de 3</span>
+            </div>
+            <p className="text-xs text-[#6B6B72] mt-0.5">Indique em quais regiões da folha padrão ficam os blocos principais de informação.</p>
+          </div>
         </div>
-
-        {/* Advance button — top right */}
         <Button className="h-9 bg-[#1D4ED8] hover:bg-[#1E40AF] text-white rounded-xl text-sm font-medium shadow-sm gap-2 px-4 flex-shrink-0">
           Avançar para Regras (Passo 2)
           <ArrowRight className="w-4 h-4" />
         </Button>
       </motion.div>
 
-      {/* Main layout */}
-      <div className="flex flex-1 min-h-0 gap-0 px-6 pb-6">
+      {/* Body — 25 / 75 split */}
+      <div className="flex flex-1 min-h-0 px-6 pb-6 gap-4">
 
-        {/* ── LEFT PANEL ─────────────────────────────────── */}
+        {/* ── LEFT PANEL (25%) ─────────────────────────── */}
         <motion.div
           initial={{ opacity: 0, x: -10 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.35 }}
-          className="w-[296px] flex-shrink-0 flex flex-col gap-4 mr-5"
+          transition={{ duration: 0.3 }}
+          className="w-[240px] flex-shrink-0 flex flex-col gap-3"
         >
-          {/* Context selectors */}
-          <div className="bg-white border border-[#E5E5E8] rounded-2xl shadow-sm p-5 flex flex-col gap-4">
+          {/* Selectors */}
+          <div className="bg-white border border-[#E5E5E8] rounded-2xl shadow-sm p-4 flex flex-col gap-3">
             <div>
-              <p className="text-[11px] font-semibold text-[#6B6B72] uppercase tracking-wider mb-1.5">Projetista</p>
-              <SelectField value={projetista} onChange={setProjetista} options={PROJETISTAS_LIST} placeholder="Selecione..." />
+              <p className="text-[10px] font-semibold text-[#6B6B72] uppercase tracking-wider mb-1">Projetista</p>
+              <div className="relative">
+                <select
+                  value={projetista}
+                  onChange={e => setProjetista(e.target.value)}
+                  className="w-full appearance-none bg-white border border-[#E5E5E8] text-xs text-[#1F1F24] rounded-lg px-2.5 py-1.5 pr-7 focus:outline-none focus:ring-1 focus:ring-[#3B82F6] cursor-pointer"
+                >
+                  {PROJETISTAS_LIST.map(o => <option key={o}>{o}</option>)}
+                </select>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[#6B6B72]">▾</div>
+              </div>
             </div>
             <div>
-              <p className="text-[11px] font-semibold text-[#6B6B72] uppercase tracking-wider mb-1.5">Tipo de Caderno</p>
-              <SelectField value={caderno} onChange={setCaderno} options={CADERNOS} placeholder="Selecione..." />
+              <p className="text-[10px] font-semibold text-[#6B6B72] uppercase tracking-wider mb-1">Tipo de Caderno</p>
+              <div className="relative">
+                <select
+                  value={caderno}
+                  onChange={e => setCaderno(e.target.value)}
+                  className="w-full appearance-none bg-white border border-[#E5E5E8] text-xs text-[#1F1F24] rounded-lg px-2.5 py-1.5 pr-7 focus:outline-none focus:ring-1 focus:ring-[#3B82F6] cursor-pointer"
+                >
+                  {CADERNOS.map(o => <option key={o}>{o}</option>)}
+                </select>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[#6B6B72]">▾</div>
+              </div>
             </div>
           </div>
 
-          {/* Capture regions */}
-          <div className="bg-white border border-[#E5E5E8] rounded-2xl shadow-sm p-5 flex flex-col gap-3 flex-1 overflow-hidden">
-            <div className="flex-shrink-0">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-[#0F0F0F]">Áreas de Captura Obrigatórias</p>
-                <span className="text-[11px] font-medium text-[#6B6B72]">{mappedCount}/{regions.length}</span>
+          {/* Areas manager */}
+          <div className="bg-white border border-[#E5E5E8] rounded-2xl shadow-sm p-4 flex flex-col gap-3 flex-1 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between flex-shrink-0">
+              <div>
+                <p className="text-xs font-semibold text-[#0F0F0F]">Áreas de Captura</p>
+                <p className="text-[10px] text-[#9CA3AF]">{mappedCount}/{areas.length} mapeadas</p>
               </div>
-              <div className="mt-2 h-1 w-full bg-[#F1F1F4] rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-[#3B82F6] rounded-full transition-all duration-500"
-                  style={{ width: `${(mappedCount / regions.length) * 100}%` }}
-                />
-              </div>
+              {areas.length > 0 && (
+                <div className="h-1 w-16 bg-[#F1F1F4] rounded-full overflow-hidden">
+                  <div className="h-full bg-[#3B82F6] rounded-full transition-all duration-500" style={{ width: `${areas.length ? (mappedCount / areas.length) * 100 : 0}%` }} />
+                </div>
+              )}
             </div>
 
-            <div className="flex flex-col gap-2 overflow-y-auto flex-1">
-              {regions.map(region => (
-                <RegionCard
-                  key={region.id}
-                  region={region}
-                  active={activeRegion === region.id}
-                  onDemarcar={handleDemarcar}
-                />
-              ))}
+            {/* Create button */}
+            <button
+              onClick={() => setShowModal(true)}
+              className="flex items-center justify-center gap-1.5 w-full h-9 rounded-xl border-2 border-dashed border-[#D1D5DB] text-xs font-medium text-[#6B6B72] hover:border-[#3B82F6] hover:text-[#3B82F6] hover:bg-[#EFF6FF] transition-all duration-150 flex-shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Criar Nova Área de Captura
+            </button>
+
+            {/* Area cards */}
+            <div className="flex flex-col gap-1.5 overflow-y-auto flex-1">
+              {areas.length === 0 ? (
+                <div className="flex-1 flex items-center justify-center py-8 text-center">
+                  <p className="text-[11px] text-[#9CA3AF] leading-relaxed">Nenhuma área criada.<br />Clique em "+ Criar" para começar.</p>
+                </div>
+              ) : (
+                areas.map(area => (
+                  <AreaCard
+                    key={area.id}
+                    area={area}
+                    active={activeAreaId === area.id}
+                    onTarget={handleTarget}
+                    onDelete={handleDeleteArea}
+                  />
+                ))
+              )}
             </div>
 
             {saving && (
-              <div className="flex items-center gap-2 text-xs text-[#3B82F6] pt-1 flex-shrink-0">
+              <div className="flex items-center gap-1.5 text-[10px] text-[#3B82F6] flex-shrink-0">
                 <div className="w-3 h-3 border-2 border-[#BFDBFE] border-t-[#3B82F6] rounded-full animate-spin" />
-                Salvando coordenadas...
+                Salvando...
               </div>
             )}
           </div>
         </motion.div>
 
-        {/* ── RIGHT PANEL ─────────────────────────────────── */}
+        {/* ── RIGHT PANEL (75%) ────────────────────────── */}
         <motion.div
           initial={{ opacity: 0, x: 10 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.35 }}
+          transition={{ duration: 0.3 }}
           className="flex-1 min-w-0 flex flex-col bg-white border border-[#E5E5E8] rounded-2xl shadow-sm overflow-hidden"
         >
           {/* Toolbar */}
           <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#E5E5E8] flex-shrink-0 bg-[#FAFAFA]">
-            {/* Upload */}
-            <input
-              type="file"
-              accept=".pdf"
-              ref={fileInputRef}
-              className="hidden"
-              onChange={() => {}}
-            />
+            <input type="file" accept=".pdf" ref={fileInputRef} className="hidden" />
             <button
               onClick={() => fileInputRef.current?.click()}
               className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium border border-[#E5E5E8] bg-white text-[#4A4A52] hover:bg-[#F1F1F4] transition-colors"
             >
               <Upload className="w-3.5 h-3.5" />
-              Carregar PDF de Exemplo
+              Carregar PDF
             </button>
 
-            <div className="h-4 w-px bg-[#E5E5E8] mx-0.5" />
+            <div className="h-4 w-px bg-[#E5E5E8]" />
 
-            {/* Zoom */}
             <div className="flex items-center gap-1">
-              <button
-                onClick={() => setZoom(z => Math.max(50, z - 10))}
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-[#6B6B72] border border-[#E5E5E8] bg-white hover:bg-[#F1F1F4] transition-colors"
-              >
+              <button onClick={() => setZoom(z => Math.max(50, z - 10))} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#6B6B72] border border-[#E5E5E8] bg-white hover:bg-[#F1F1F4] transition-colors">
                 <ZoomOut className="w-3.5 h-3.5" />
               </button>
-              <span className="text-xs font-medium text-[#4A4A52] w-9 text-center tabular-nums">{zoom}%</span>
-              <button
-                onClick={() => setZoom(z => Math.min(200, z + 10))}
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-[#6B6B72] border border-[#E5E5E8] bg-white hover:bg-[#F1F1F4] transition-colors"
-              >
+              <span className="text-xs font-medium text-[#4A4A52] w-10 text-center tabular-nums">{zoom}%</span>
+              <button onClick={() => setZoom(z => Math.min(200, z + 10))} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#6B6B72] border border-[#E5E5E8] bg-white hover:bg-[#F1F1F4] transition-colors">
                 <ZoomIn className="w-3.5 h-3.5" />
               </button>
             </div>
 
-            <div className="h-4 w-px bg-[#E5E5E8] mx-0.5" />
-
-            {/* Draw tool */}
-            <button
-              onClick={() => setActiveRegion(activeRegion ? null : null)}
-              disabled={!activeRegion}
-              className={`flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium border transition-colors ${
-                activeRegion
-                  ? "bg-[#EFF6FF] border-[#3B82F6] text-[#3B82F6]"
-                  : "bg-white border-[#E5E5E8] text-[#A1A1AA] cursor-not-allowed"
-              }`}
-            >
-              <Crosshair className="w-3.5 h-3.5" />
-              Desenhar Região Retangular
-            </button>
-
-            {/* Active indicator */}
-            {activeRegion && (
-              <div className="ml-2 flex items-center gap-1.5 bg-[#EFF6FF] border border-[#BFDBFE] rounded-lg px-2.5 h-7">
-                <div className="w-1.5 h-1.5 rounded-full bg-[#3B82F6] animate-pulse" />
-                <span className="text-[11px] font-medium text-[#3B82F6]">
-                  Clique e arraste para demarcar Região {activeRegion}
-                </span>
-              </div>
-            )}
+            {activeAreaId && (() => {
+              const a = areas.find(x => x.id === activeAreaId);
+              const c = a ? getColorMeta(a.color) : null;
+              return (
+                <div className="ml-2 flex items-center gap-1.5 bg-[#EFF6FF] border border-[#BFDBFE] rounded-lg px-3 h-7">
+                  {c && <div className={`w-2 h-2 rounded-full ${c.cls} animate-pulse`} />}
+                  <span className="text-[11px] font-medium text-[#3B82F6]">
+                    Clique e arraste para demarcar "{a?.name}"
+                  </span>
+                  <button onClick={() => setActiveAreaId(null)} className="ml-1 text-[#93C5FD] hover:text-[#3B82F6]">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              );
+            })()}
           </div>
 
-          {/* Blueprint canvas */}
+          {/* Canvas */}
           <div className="flex-1 overflow-hidden">
             <BlueprintCanvas
               zoom={zoom}
-              activeRegion={activeRegion}
-              regions={regions}
+              activeAreaId={activeAreaId}
+              areas={areas}
               onRegionDrawn={handleRegionDrawn}
               onRegionDeleted={handleRegionDeleted}
             />
           </div>
         </motion.div>
-
       </div>
+
+      {/* New area modal */}
+      <AnimatePresence>
+        {showModal && <NewAreaModal onConfirm={handleCreateArea} onClose={() => setShowModal(false)} />}
+      </AnimatePresence>
     </div>
   );
 }

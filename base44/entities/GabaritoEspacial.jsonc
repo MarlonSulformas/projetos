@@ -11,17 +11,25 @@
     "nome_regiao": {
       "type": "string"
     },
+    "color": {
+      "type": "string",
+      "default": "blue"
+    },
     "coordenada_x": {
-      "type": "number"
+      "type": "number",
+      "default": 0
     },
     "coordenada_y": {
-      "type": "number"
+      "type": "number",
+      "default": 0
     },
     "largura": {
-      "type": "number"
+      "type": "number",
+      "default": 0
     },
     "altura": {
-      "type": "number"
+      "type": "number",
+      "default": 0
     }
   },
   "required": [
