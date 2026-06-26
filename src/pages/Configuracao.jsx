@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "@/lib/supabaseClient";
-import { Plus, ArrowRight, Target, CheckCircle2, Clock, Trash2, Upload, ZoomIn, ZoomOut, X } from "lucide-react";
+import { Plus, ArrowRight, Target, CheckCircle2, Clock, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import BlueprintCanvas from "@/components/configuracao/BlueprintCanvas";
 
@@ -154,7 +154,6 @@ export default function Configuracao() {
   const [caderno, setCaderno] = useState("Caderno de Pilares");
   const [areas, setAreas] = useState([]);
   const [activeAreaId, setActiveAreaId] = useState(null);
-  const [zoomScale, setZoomScale] = useState(1.0);
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pdfUrl, setPdfUrl] = useState(null);
@@ -265,7 +264,7 @@ export default function Configuracao() {
   const mappedCount = areas.filter(a => a.rect).length;
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col h-screen overflow-hidden" style={{ overflow: "hidden" }}>
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -8 }}
@@ -400,18 +399,6 @@ export default function Configuracao() {
               {pdfName ? pdfName : "Carregar PDF"}
             </button>
 
-            <div className="h-4 w-px bg-[#E5E5E8]" />
-
-            <div className="flex items-center gap-1">
-              <button onClick={() => setZoomScale(z => Math.max(0.2, parseFloat((z - 0.1).toFixed(1))))} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#6B6B72] border border-[#E5E5E8] bg-white hover:bg-[#F1F1F4] transition-colors">
-                <ZoomOut className="w-3.5 h-3.5" />
-              </button>
-              <span className="text-xs font-medium text-[#4A4A52] w-12 text-center tabular-nums">{Math.round(zoomScale * 100)}%</span>
-              <button onClick={() => setZoomScale(z => Math.min(3.0, parseFloat((z + 0.1).toFixed(1))))} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#6B6B72] border border-[#E5E5E8] bg-white hover:bg-[#F1F1F4] transition-colors">
-                <ZoomIn className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
             {activeAreaId && (() => {
               const a = areas.find(x => x.id === activeAreaId);
               const c = a ? getColorMeta(a.color) : null;
@@ -433,7 +420,6 @@ export default function Configuracao() {
           <div style={{ flex: 1, minHeight: 0, height: "100%", width: "100%" }}>
             {pdfUrl ? (
               <BlueprintCanvas
-                zoomScale={zoomScale}
                 activeAreaId={activeAreaId}
                 areas={areas}
                 pdfUrl={pdfUrl}

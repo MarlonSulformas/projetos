@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { Trash2 } from "lucide-react";
 
 const COLOR_MAP = {
@@ -10,27 +10,42 @@ const COLOR_MAP = {
 
 function getColor(id) { return COLOR_MAP[id] || COLOR_MAP.blue; }
 
-// PDF_W e PDF_H representam o tamanho natural do documento em pixels na tela (sem zoom).
-// O iframe é renderizado nesse tamanho fixo; o zoom escala esse bloco inteiro.
-// O container pai tem overflow:auto → scrollbars aparecem quando o bloco escalado transbordar.
-const PDF_W = 800;  // largura base do iframe em px
-const PDF_H = 1130; // altura base do iframe em px (A4 landscape ~1:1.41)
+// Proporção A4 retrato: 1 : √2 ≈ 1 : 1.4142
+const A4_RATIO = 1.4142;
 
-export default function BlueprintCanvas({ zoomScale = 1, activeAreaId, areas, pdfUrl, onRegionDrawn, onRegionDeleted }) {
+export default function BlueprintCanvas({ activeAreaId, areas, pdfUrl, onRegionDrawn, onRegionDeleted }) {
+  const containerRef = useRef(null);
   const overlayRef = useRef(null);
+  const [pdfSize, setPdfSize] = useState({ w: 0, h: 0 });
   const [drawing, setDrawing] = useState(null);
   const [hoveredId, setHoveredId] = useState(null);
 
-  // Dimensões escaladas reais (ocupam espaço físico no layout para ativar scrollbars)
-  const scaledW = PDF_W * zoomScale;
-  const scaledH = PDF_H * zoomScale;
+  // Calcula o tamanho do PDF para preencher o container em proporção A4
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const measure = () => {
+      const { width, height } = containerRef.current.getBoundingClientRect();
+      const pad = 32; // padding interno total
+      const maxW = width - pad;
+      const maxH = height - pad;
+      // Encaixa o A4 dentro do container mantendo proporção
+      let w = maxW;
+      let h = w * A4_RATIO;
+      if (h > maxH) {
+        h = maxH;
+        w = h / A4_RATIO;
+      }
+      setPdfSize({ w: Math.floor(w), h: Math.floor(h) });
+    };
+    measure();
+    const obs = new ResizeObserver(measure);
+    obs.observe(containerRef.current);
+    return () => obs.disconnect();
+  }, []);
 
   function getPos(e) {
     const rect = overlayRef.current.getBoundingClientRect();
-    return {
-      x: (e.clientX - rect.left) / zoomScale,
-      y: (e.clientY - rect.top) / zoomScale,
-    };
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   }
 
   function onMouseDown(e) {
@@ -50,7 +65,7 @@ export default function BlueprintCanvas({ zoomScale = 1, activeAreaId, areas, pd
     const y = Math.min(drawing.sy, drawing.cy);
     const w = Math.abs(drawing.cx - drawing.sx);
     const h = Math.abs(drawing.cy - drawing.sy);
-    if (w > 12 && h > 12) onRegionDrawn(activeAreaId, { x, y, width: w, height: h });
+    if (w > 8 && h > 8) onRegionDrawn(activeAreaId, { x, y, width: w, height: h });
     setDrawing(null);
   }
 
@@ -63,57 +78,49 @@ export default function BlueprintCanvas({ zoomScale = 1, activeAreaId, areas, pd
 
   const activeArea = activeAreaId ? areas.find(a => a.id === activeAreaId) : null;
 
+  // Escala para converter coordenadas salvas (em espaço do PDF) para pixels na tela
+  // As coordenadas são salvas em px relativos ao tamanho do iframe no momento do desenho
+  // Como o tamanho do pdf é sempre o mesmo (pdfSize), as coords batem direto.
+
   return (
-    /*
-     * PAI — janela estática com overflow:auto.
-     * Sem flex-center para não travar o scroll quando o conteúdo transbordar.
-     */
     <div
+      ref={containerRef}
       style={{
         width: "100%",
         height: "100%",
-        background: "#222",
+        background: "#1e1e1e",
         borderRadius: "8px",
-        overflow: "auto",
+        overflow: "hidden",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
       }}
     >
-      {/*
-       * Wrapper de centralização horizontal — apenas empurra o bloco para o centro
-       * quando ele for menor que o container; não interfere no scroll vertical.
-       */}
-      <div style={{ display: "flex", justifyContent: "center", padding: "16px 0", minHeight: "100%" }}>
-        {/*
-         * BLOCO DO PDF — tem dimensões físicas reais (scaledW × scaledH).
-         * Não usa transform:scale (que não expande o layout).
-         * O iframe é renderizado em PDF_W × PDF_H e o bloco pai é escalado
-         * via width/height físicos; o iframe é escalado via transform para caber.
-         */}
+      {pdfSize.w > 0 && (
         <div
           style={{
             position: "relative",
-            width: `${scaledW}px`,
-            height: `${scaledH}px`,
+            width: `${pdfSize.w}px`,
+            height: `${pdfSize.h}px`,
             flexShrink: 0,
+            boxShadow: "0 4px 32px rgba(0,0,0,0.5)",
           }}
         >
-          {/* iframe escalado para preencher o bloco físico */}
+          {/* iframe ocupa 100% do bloco A4 */}
           <iframe
             src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
             style={{
               position: "absolute",
-              top: 0,
-              left: 0,
-              width: `${PDF_W}px`,
-              height: `${PDF_H}px`,
+              inset: 0,
+              width: "100%",
+              height: "100%",
               border: "none",
-              transformOrigin: "top left",
-              transform: `scale(${zoomScale})`,
               pointerEvents: activeAreaId ? "none" : "auto",
             }}
             title="PDF Viewer"
           />
 
-          {/* Overlay de desenho — mesmo tamanho físico do bloco */}
+          {/* Overlay de desenho */}
           <div
             ref={overlayRef}
             style={{
@@ -126,20 +133,21 @@ export default function BlueprintCanvas({ zoomScale = 1, activeAreaId, areas, pd
             onMouseUp={onMouseUp}
             onMouseLeave={onMouseUp}
           >
-            {/* Regiões existentes (coords em espaço não-escalado) */}
+            {/* Regiões existentes */}
             {areas.filter(a => a.rect).map(area => {
               const c = getColor(area.color);
               const r = area.rect;
               const isHovered = hoveredId === area.id;
+              // Normaliza coords caso tenham sido salvas com tamanho diferente
               return (
                 <div
                   key={area.id}
                   style={{
                     position: "absolute",
-                    left: `${r.x * zoomScale}px`,
-                    top: `${r.y * zoomScale}px`,
-                    width: `${r.width * zoomScale}px`,
-                    height: `${r.height * zoomScale}px`,
+                    left: `${r.x}px`,
+                    top: `${r.y}px`,
+                    width: `${r.width}px`,
+                    height: `${r.height}px`,
                     border: `2px dashed ${c.border}`,
                     backgroundColor: c.bg,
                     borderRadius: "3px",
@@ -182,10 +190,10 @@ export default function BlueprintCanvas({ zoomScale = 1, activeAreaId, areas, pd
                 <div
                   style={{
                     position: "absolute",
-                    left: `${inProgress.x * zoomScale}px`,
-                    top: `${inProgress.y * zoomScale}px`,
-                    width: `${inProgress.width * zoomScale}px`,
-                    height: `${inProgress.height * zoomScale}px`,
+                    left: `${inProgress.x}px`,
+                    top: `${inProgress.y}px`,
+                    width: `${inProgress.width}px`,
+                    height: `${inProgress.height}px`,
                     border: `2px dashed ${c.border}`,
                     backgroundColor: c.bg,
                     borderRadius: "3px",
@@ -196,7 +204,7 @@ export default function BlueprintCanvas({ zoomScale = 1, activeAreaId, areas, pd
             })()}
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
