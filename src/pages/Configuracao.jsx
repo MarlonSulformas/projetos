@@ -177,7 +177,6 @@ export default function Configuracao() {
         const pid = found?.id || projetista;
         const records = await db.listGabaritos(pid);
         setAreas((records || [])
-          .filter(r => !caderno || r.tipo_documento === caderno || !r.tipo_documento)
           .map(r => ({
             id: r.id,
             recordId: r.id,
@@ -207,7 +206,6 @@ export default function Configuracao() {
     const pid = await resolveProjetistaId();
     const created = await db.createGabarito({
       id_projetista: pid,
-      tipo_documento: caderno,
       nome_regiao: name,
       cor_marcador: color,
       coordenada_x: 0,
