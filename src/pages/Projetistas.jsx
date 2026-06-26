@@ -35,12 +35,7 @@ function mapProduto(p) {
   };
 }
 
-const SEED_PROJETISTAS = [
-  { nome_razao_social: "Estruturas Apex Engenharia Ltda.", cnpj: "12.345.678/0001-90", email_contato: "contato@estruturasapex.com.br", especialidade: "Vigas e Lajes", status: "Ativo" },
-  { nome_razao_social: "Engenharia Delta S.A.", cnpj: "98.765.432/0001-11", email_contato: "contato@deltaeng.com.br", especialidade: "Pilares e Fundações", status: "Ativo" },
-  { nome_razao_social: "Concretar Estrutural Eireli", cnpj: "11.222.333/0001-44", email_contato: "engenharia@concretar.com.br", especialidade: "Painéis e Fachadas", status: "Ativo" },
-  { nome_razao_social: "Prémold Tech Sistemas Ltda.", cnpj: "67.890.123/0001-55", email_contato: "suporte@premoldtech.com.br", especialidade: "Sistemas Pré-Moldados", status: "Ativo" },
-];
+
 
 export default function Projetistas() {
   const [projetistas, setProjetistas] = useState([]);
@@ -59,27 +54,12 @@ export default function Projetistas() {
     setLoading(true);
     setError(null);
     try {
-      let raw = await db.listProjetistas();
-      if (!raw || raw.length === 0) {
-        for (const p of SEED_PROJETISTAS) await db.createProjetista(p);
-        raw = await db.listProjetistas();
-      }
+      const raw = await db.listProjetistas();
       const ps = (raw || []).map(mapProjetista);
       setProjetistas(ps);
       if (ps.length > 0) setSelectedId(ps[0].id);
 
-      let rawProds = await db.listProdutos();
-      if (!rawProds || rawProds.length === 0) {
-        const seeds = [
-          { id_projetista: ps[0]?.id, nome_produto: "Vigas Pré-Moldadas", descricao_modelo: "Layout Padrão V1", status: "Ativo" },
-          { id_projetista: ps[0]?.id, nome_produto: "Pilares Industriais", descricao_modelo: "Modelo Técnico P3", status: "Em revisão" },
-          { id_projetista: ps[1]?.id, nome_produto: "Fundação Profunda", descricao_modelo: "Sistema FP-10", status: "Ativo" },
-          { id_projetista: ps[2]?.id, nome_produto: "Painéis de Fachada", descricao_modelo: "Módulo Externo PF-7", status: "Ativo" },
-          { id_projetista: ps[3]?.id, nome_produto: "Lajes Nervuradas", descricao_modelo: "Série Industrial LN-5", status: "Ativo" },
-        ].filter(s => s.id_projetista);
-        for (const s of seeds) await db.createProduto(s);
-        rawProds = await db.listProdutos();
-      }
+      const rawProds = await db.listProdutos();
       setProdutos((rawProds || []).map(mapProduto));
     } catch (e) {
       setError(e.message);
