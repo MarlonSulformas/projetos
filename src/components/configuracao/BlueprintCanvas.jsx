@@ -10,31 +10,18 @@ const COLOR_MAP = {
 
 function getColor(id) { return COLOR_MAP[id] || COLOR_MAP.blue; }
 
-export default function BlueprintCanvas({ zoom, activeAreaId, areas, pdfUrl, onRegionDrawn, onRegionDeleted }) {
-  const containerRef = useRef(null);
+// zoomScale: decimal (1.0 = 100%, 1.5 = 150%, etc.)
+export default function BlueprintCanvas({ zoomScale = 1, activeAreaId, areas, pdfUrl, onRegionDrawn, onRegionDeleted }) {
   const overlayRef = useRef(null);
   const [drawing, setDrawing] = useState(null);
   const [hoveredId, setHoveredId] = useState(null);
-  const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
 
-  // Track container size for overlay positioning
-  useEffect(() => {
-    if (!overlayRef.current) return;
-    const obs = new ResizeObserver(entries => {
-      const { width, height } = entries[0].contentRect;
-      setContainerSize({ w: width, h: height });
-    });
-    obs.observe(overlayRef.current);
-    return () => obs.disconnect();
-  }, []);
-
-  const scale = zoom / 100;
-
+  // Get mouse position relative to the unscaled overlay
   function getPos(e) {
     const rect = overlayRef.current.getBoundingClientRect();
     return {
-      x: (e.clientX - rect.left) / scale,
-      y: (e.clientY - rect.top) / scale,
+      x: (e.clientX - rect.left) / zoomScale,
+      y: (e.clientY - rect.top) / zoomScale,
     };
   }
 
@@ -60,30 +47,34 @@ export default function BlueprintCanvas({ zoom, activeAreaId, areas, pdfUrl, onR
   }
 
   const inProgress = drawing ? {
-    x: Math.min(drawing.sx, drawing.cx), y: Math.min(drawing.sy, drawing.cy),
-    width: Math.abs(drawing.cx - drawing.sx), height: Math.abs(drawing.cy - drawing.sy),
+    x: Math.min(drawing.sx, drawing.cx),
+    y: Math.min(drawing.sy, drawing.cy),
+    width: Math.abs(drawing.cx - drawing.sx),
+    height: Math.abs(drawing.cy - drawing.sy),
   } : null;
 
   const activeArea = activeAreaId ? areas.find(a => a.id === activeAreaId) : null;
 
-  // Overlay dimensions scaled
-  const overlayW = containerSize.w * scale;
-  const overlayH = containerSize.h * scale;
-
   return (
-    <div ref={containerRef} className="w-full h-full flex overflow-auto bg-[#F0F2F5]" style={{ minHeight: "100%" }}>
+    // Outer: scroll container, centers content when smaller than viewport
+    <div
+      className="w-full h-full overflow-auto bg-[#F0F2F5] flex items-center justify-center"
+    >
+      {/* Scaled wrapper — grows to hold the zoomed content so scrollbars appear */}
       <div
-        className="relative flex-shrink-0"
         style={{
-          width: scale !== 1 ? `${overlayW}px` : "100%",
-          height: scale !== 1 ? `${overlayH}px` : "100%",
-          minWidth: "100%",
-          minHeight: "100%",
+          transformOrigin: "top center",
+          transform: `scale(${zoomScale})`,
+          // Make the scaled element take the right amount of real space
+          width: "100%",
+          height: "100%",
+          flexShrink: 0,
+          position: "relative",
         }}
       >
-        {/* PDF iframe */}
+        {/* PDF iframe — no zoom param, we control it via CSS scale */}
         <iframe
-          src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0&zoom=${zoom}`}
+          src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
           style={{
             position: "absolute",
             inset: 0,

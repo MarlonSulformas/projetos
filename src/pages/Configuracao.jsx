@@ -154,7 +154,7 @@ export default function Configuracao() {
   const [caderno, setCaderno] = useState("Caderno de Pilares");
   const [areas, setAreas] = useState([]);
   const [activeAreaId, setActiveAreaId] = useState(null);
-  const [zoom, setZoom] = useState(100);
+  const [zoomScale, setZoomScale] = useState(1.0);
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pdfUrl, setPdfUrl] = useState(null);
@@ -403,11 +403,11 @@ export default function Configuracao() {
             <div className="h-4 w-px bg-[#E5E5E8]" />
 
             <div className="flex items-center gap-1">
-              <button onClick={() => setZoom(z => Math.max(50, z - 10))} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#6B6B72] border border-[#E5E5E8] bg-white hover:bg-[#F1F1F4] transition-colors">
+              <button onClick={() => setZoomScale(z => Math.max(0.2, parseFloat((z - 0.1).toFixed(1))))} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#6B6B72] border border-[#E5E5E8] bg-white hover:bg-[#F1F1F4] transition-colors">
                 <ZoomOut className="w-3.5 h-3.5" />
               </button>
-              <span className="text-xs font-medium text-[#4A4A52] w-10 text-center tabular-nums">{zoom}%</span>
-              <button onClick={() => setZoom(z => Math.min(200, z + 10))} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#6B6B72] border border-[#E5E5E8] bg-white hover:bg-[#F1F1F4] transition-colors">
+              <span className="text-xs font-medium text-[#4A4A52] w-12 text-center tabular-nums">{Math.round(zoomScale * 100)}%</span>
+              <button onClick={() => setZoomScale(z => Math.min(3.0, parseFloat((z + 0.1).toFixed(1))))} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#6B6B72] border border-[#E5E5E8] bg-white hover:bg-[#F1F1F4] transition-colors">
                 <ZoomIn className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -433,7 +433,7 @@ export default function Configuracao() {
           <div className="flex-1 overflow-auto h-full w-full">
             {pdfUrl ? (
               <BlueprintCanvas
-                zoom={zoom}
+                zoomScale={zoomScale}
                 activeAreaId={activeAreaId}
                 areas={areas}
                 pdfUrl={pdfUrl}
