@@ -157,7 +157,17 @@ export default function Configuracao() {
   const [zoom, setZoom] = useState(100);
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState(null);
+  const [pdfName, setPdfName] = useState(null);
   const fileInputRef = useRef(null);
+
+  function handleFileChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+    setPdfUrl(URL.createObjectURL(file));
+    setPdfName(file.name);
+  }
 
   useEffect(() => {
     async function load() {
@@ -381,13 +391,13 @@ export default function Configuracao() {
         >
           {/* Toolbar */}
           <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#E5E5E8] flex-shrink-0 bg-[#FAFAFA]">
-            <input type="file" accept=".pdf" ref={fileInputRef} className="hidden" />
+            <input type="file" accept=".pdf" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
             <button
               onClick={() => fileInputRef.current?.click()}
               className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium border border-[#E5E5E8] bg-white text-[#4A4A52] hover:bg-[#F1F1F4] transition-colors"
             >
               <Upload className="w-3.5 h-3.5" />
-              Carregar PDF
+              {pdfName ? pdfName : "Carregar PDF"}
             </button>
 
             <div className="h-4 w-px bg-[#E5E5E8]" />
@@ -421,13 +431,33 @@ export default function Configuracao() {
 
           {/* Canvas */}
           <div className="flex-1 overflow-hidden">
-            <BlueprintCanvas
-              zoom={zoom}
-              activeAreaId={activeAreaId}
-              areas={areas}
-              onRegionDrawn={handleRegionDrawn}
-              onRegionDeleted={handleRegionDeleted}
-            />
+            {pdfUrl ? (
+              <BlueprintCanvas
+                zoom={zoom}
+                activeAreaId={activeAreaId}
+                areas={areas}
+                pdfUrl={pdfUrl}
+                onRegionDrawn={handleRegionDrawn}
+                onRegionDeleted={handleRegionDeleted}
+              />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center bg-[#F8F9FB] gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-[#EFF6FF] flex items-center justify-center">
+                  <Upload className="w-6 h-6 text-[#3B82F6]" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-semibold text-[#1F1F24]">Nenhum PDF carregado</p>
+                  <p className="text-xs text-[#9CA3AF] mt-1">Clique em "Carregar PDF" na barra acima para começar o mapeamento.</p>
+                </div>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-2 h-9 px-4 rounded-xl bg-[#3B82F6] hover:bg-[#2563EB] text-white text-xs font-medium transition-colors"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  Selecionar arquivo PDF
+                </button>
+              </div>
+            )}
           </div>
         </motion.div>
       </div>
