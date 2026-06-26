@@ -71,12 +71,12 @@ export default function BlueprintCanvas({ zoom, activeAreaId, areas, pdfUrl, onR
   const overlayH = containerSize.h * scale;
 
   return (
-    <div ref={containerRef} className="w-full h-full flex overflow-auto bg-[#F0F2F5]">
+    <div ref={containerRef} className="w-full h-full flex overflow-auto bg-[#F0F2F5]" style={{ minHeight: "100%" }}>
       <div
         className="relative flex-shrink-0"
         style={{
-          width: `${overlayW || containerSize.w}px`,
-          height: `${overlayH || containerSize.h}px`,
+          width: scale !== 1 ? `${overlayW}px` : "100%",
+          height: scale !== 1 ? `${overlayH}px` : "100%",
           minWidth: "100%",
           minHeight: "100%",
         }}

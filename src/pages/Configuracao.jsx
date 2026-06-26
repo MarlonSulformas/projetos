@@ -291,7 +291,7 @@ export default function Configuracao() {
       </motion.div>
 
       {/* Body — 25 / 75 split */}
-      <div className="flex flex-1 min-h-0 px-6 pb-6 gap-4">
+      <div className="flex flex-1 min-h-0 px-6 pb-6 gap-4 overflow-hidden">
 
         {/* ── LEFT PANEL (25%) ─────────────────────────── */}
         <motion.div
@@ -387,7 +387,7 @@ export default function Configuracao() {
           initial={{ opacity: 0, x: 10 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.3 }}
-          className="flex-1 min-w-0 flex flex-col bg-white border border-[#E5E5E8] rounded-2xl shadow-sm overflow-hidden"
+          className="flex-1 min-w-0 min-h-0 flex flex-col bg-white border border-[#E5E5E8] rounded-2xl shadow-sm overflow-hidden"
         >
           {/* Toolbar */}
           <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#E5E5E8] flex-shrink-0 bg-[#FAFAFA]">
@@ -430,7 +430,7 @@ export default function Configuracao() {
           </div>
 
           {/* Canvas */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-auto">
             {pdfUrl ? (
               <BlueprintCanvas
                 zoom={zoom}
