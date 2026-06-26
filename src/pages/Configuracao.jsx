@@ -264,7 +264,7 @@ export default function Configuracao() {
   const mappedCount = areas.filter(a => a.rect).length;
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden" style={{ overflow: "hidden" }}>
+    <div className="flex flex-col overflow-hidden" style={{ height: "100%", overflow: "hidden" }}>
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -8 }}
@@ -290,7 +290,7 @@ export default function Configuracao() {
       </motion.div>
 
       {/* Body — 25 / 75 split */}
-      <div className="flex h-[calc(100vh-120px)] w-full items-stretch gap-4 px-6 pb-6">
+      <div className="flex flex-1 min-h-0 w-full items-stretch gap-4 px-6 pb-6">
 
         {/* ── LEFT PANEL (25%) ─────────────────────────── */}
         <motion.div
