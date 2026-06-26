@@ -51,12 +51,13 @@ export default function BlueprintCanvas({
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
+  const [renderTick, setRenderTick] = useState(0);
 
   // Drawing state
-  const [drawing, setDrawing] = useState(null); // { sx, sy, cx, cy }
+  const [drawing, setDrawing] = useState(null);
 
   // Resizing state
-  const [resizing, setResizing] = useState(null); // { areaId, corner, origRect, startX, startY }
+  const [resizing, setResizing] = useState(null);
 
   const [hoveredId, setHoveredId] = useState(null);
 
@@ -67,6 +68,7 @@ export default function BlueprintCanvas({
 
     async function render() {
       const container = containerRef.current;
+      if (!container) return;
       const containerW = container.clientWidth;
       const containerH = container.clientHeight;
       if (!containerW || !containerH) return;
@@ -102,17 +104,20 @@ export default function BlueprintCanvas({
 
     render();
     return () => { cancelled = true; };
-  }, [pdfUrl]);
+  }, [pdfUrl, renderTick]);
 
-  // Re-render on resize
+  // Re-render when container gets actual dimensions
   useEffect(() => {
     if (!containerRef.current) return;
-    const obs = new ResizeObserver(() => {
-      if (pdfUrl) setCanvasSize(s => ({ ...s }));
+    const obs = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+        setRenderTick(t => t + 1);
+      }
     });
     obs.observe(containerRef.current);
     return () => obs.disconnect();
-  }, [pdfUrl]);
+  }, []);
 
   // ── Coordinate helpers ─────────────────────────────────────────
   function getNorm(e) {
