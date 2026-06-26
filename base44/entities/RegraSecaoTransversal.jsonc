@@ -1,0 +1,20 @@
+{
+  "name": "RegraSecaoTransversal",
+  "type": "object",
+  "properties": {
+    "produto_id": {
+      "type": "string"
+    },
+    "projetista_id": {
+      "type": "string"
+    },
+    "tem_secao_variavel": {
+      "type": "boolean",
+      "default": true
+    },
+    "configuracao_json": {
+      "type": "string"
+    }
+  },
+  "required": []
+}
