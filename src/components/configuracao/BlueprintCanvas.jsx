@@ -2,8 +2,11 @@ import React, { useRef, useState, useEffect } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import { Trash2 } from "lucide-react";
 
-// Worker via CDN matching installed version
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs`;
+// Use the worker bundled with pdfjs-dist
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url
+).toString();
 
 const COLOR_MAP = {
   blue:   { border: "#3B82F6", bg: "rgba(59,130,246,0.18)",  tag: "#1D4ED8", tagBg: "rgba(219,234,254,0.95)" },
