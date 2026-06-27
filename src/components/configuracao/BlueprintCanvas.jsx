@@ -71,15 +71,14 @@ export default function BlueprintCanvas({
     let cancelled = false;
 
     async function render() {
-      // Wait until container has real size (up to 3s) — use getBoundingClientRect for accuracy
+      // Wait until container has real size (up to 2s)
       let containerW = 0, containerH = 0;
-      for (let i = 0; i < 60; i++) {
+      for (let i = 0; i < 40; i++) {
         const el = containerRef.current;
         if (!el) { await new Promise(r => setTimeout(r, 50)); continue; }
-        const rect = el.getBoundingClientRect();
-        containerW = rect.width;
-        containerH = rect.height;
-        if (containerW > 10 && containerH > 10) break;
+        containerW = el.clientWidth;
+        containerH = el.clientHeight;
+        if (containerW > 0 && containerH > 0) break;
         await new Promise(r => setTimeout(r, 50));
       }
       if (!containerW || !containerH || cancelled) return;
@@ -120,19 +119,13 @@ export default function BlueprintCanvas({
     return () => { cancelled = true; };
   }, [pdfUrl, renderTick]);
 
-  // Re-render when container resizes — also fires on first mount to catch late layout
+  // Re-render when container resizes
   useEffect(() => {
     if (!containerRef.current) return;
-    let fired = false;
     const obs = new ResizeObserver((entries) => {
       const entry = entries[0];
-      if (entry && entry.contentRect.width > 10 && entry.contentRect.height > 10 && pdfUrlRef.current) {
-        if (!fired) {
-          fired = true;
-          setRenderTick(t => t + 1);
-        } else {
-          setRenderTick(t => t + 1);
-        }
+      if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0 && pdfUrlRef.current) {
+        setRenderTick(t => t + 1);
       }
     });
     obs.observe(containerRef.current);
