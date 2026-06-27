@@ -338,7 +338,7 @@ export default function TreinamentoPainel() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25, delay: 0.05 }}
-          className="flex-shrink-0 flex flex-col gap-3 overflow-y-auto"
+          className="flex-shrink-0 flex flex-col gap-3 overflow-y-auto h-full"
           style={{ width: 288 }}
         >
           {selectedPainel ? (
@@ -381,7 +381,7 @@ export default function TreinamentoPainel() {
               </div>
 
               {/* Lista compacta de componentes */}
-              <div className="bg-white border border-[#E5E5E8] rounded-2xl shadow-sm p-4 flex-1 min-h-0 overflow-y-auto">
+              <div className="bg-white border border-[#E5E5E8] rounded-2xl shadow-sm p-4 overflow-y-auto" style={{ maxHeight: 300 }}>
                 <p className="text-[10px] font-semibold text-[#6B6B72] uppercase tracking-wider mb-2">
                   Componentes ({selectedPainel.componentes.length})
                 </p>
