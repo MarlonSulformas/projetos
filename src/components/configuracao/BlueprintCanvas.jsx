@@ -67,59 +67,59 @@ export default function BlueprintCanvas({
 
   // ── PDF rendering ──────────────────────────────────────────────
   useEffect(() => {
-    if (!pdfUrl || !containerRef.current) return;
+    if (!pdfUrl) return;
     let cancelled = false;
 
     async function render() {
-      const container = containerRef.current;
-      if (!container) return;
-
-      // Wait for container to have real dimensions (up to 20 attempts)
-      let containerW = container.clientWidth;
-      let containerH = container.clientHeight;
-      let attempts = 0;
-      while ((!containerW || !containerH) && attempts < 20) {
+      // Wait until container has real size (up to 2s)
+      let containerW = 0, containerH = 0;
+      for (let i = 0; i < 40; i++) {
+        const el = containerRef.current;
+        if (!el) { await new Promise(r => setTimeout(r, 50)); continue; }
+        containerW = el.clientWidth;
+        containerH = el.clientHeight;
+        if (containerW > 0 && containerH > 0) break;
         await new Promise(r => setTimeout(r, 50));
-        containerW = container.clientWidth;
-        containerH = container.clientHeight;
-        attempts++;
       }
-      if (!containerW || !containerH) return;
+      if (!containerW || !containerH || cancelled) return;
 
-      const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
+      let pdf;
+      try {
+        pdf = await pdfjsLib.getDocument(pdfUrl).promise;
+      } catch (e) {
+        console.error("PDF load error:", e);
+        return;
+      }
       if (cancelled) return;
+
       const page = await pdf.getPage(1);
       if (cancelled) return;
 
       const viewport = page.getViewport({ scale: 1 });
-      const scaleX = containerW / viewport.width;
-      const scaleY = containerH / viewport.height;
-      const scale = Math.min(scaleX, scaleY);
-
+      const scale = Math.min(containerW / viewport.width, containerH / viewport.height);
       const dpr = window.devicePixelRatio || 1;
-      const renderScale = scale * dpr;
-      const scaledViewport = page.getViewport({ scale: renderScale });
+      const scaledViewport = page.getViewport({ scale: scale * dpr });
       const canvasW = Math.floor(scale * viewport.width);
       const canvasH = Math.floor(scale * viewport.height);
 
       const canvas = canvasRef.current;
       if (!canvas || cancelled) return;
 
-      canvas.width = Math.floor(scaledViewport.width);
-      canvas.height = Math.floor(scaledViewport.height);
+      canvas.width = scaledViewport.width;
+      canvas.height = scaledViewport.height;
       canvas.style.width = `${canvasW}px`;
       canvas.style.height = `${canvasH}px`;
-      setCanvasSize({ w: canvasW, h: canvasH });
 
       const ctx = canvas.getContext("2d");
       await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
+      if (!cancelled) setCanvasSize({ w: canvasW, h: canvasH });
     }
 
     render();
     return () => { cancelled = true; };
   }, [pdfUrl, renderTick]);
 
-  // Re-render when container resizes and we have a PDF loaded
+  // Re-render when container resizes
   useEffect(() => {
     if (!containerRef.current) return;
     const obs = new ResizeObserver((entries) => {
@@ -232,7 +232,7 @@ export default function BlueprintCanvas({
   return (
     <div
       ref={containerRef}
-      style={{ position: "relative", width: "100%", height: "100%", background: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}
+      style={{ position: "absolute", inset: 0, background: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}
     >
       {/* PDF canvas */}
       <canvas ref={canvasRef} style={{ display: "block", boxShadow: "0 2px 12px rgba(0,0,0,0.15)", background: "#fff" }} />

@@ -495,7 +495,7 @@ export default function Configuracao() {
           </div>
 
           {/* Canvas */}
-          <div style={{ flex: 1, minHeight: 0, height: "100%", width: "100%" }}>
+          <div style={{ flex: 1, minHeight: 0, width: "100%", position: "relative", overflow: "hidden" }}>
             {pdfUrl ? (
               <BlueprintCanvas
                 isDrawingMode={true}
