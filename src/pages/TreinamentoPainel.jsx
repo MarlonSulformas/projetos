@@ -49,7 +49,7 @@ function newComponente(tipo) {
 // ── Painel lateral esquerdo — lista de painéis ────────────────────────────────
 function PainelSidebar({ paineis, selectedId, onSelect, onAdd, onDelete }) {
   return (
-    <div className="w-56 flex-shrink-0 flex flex-col bg-white border border-[#E5E5E8] rounded-2xl shadow-sm overflow-hidden">
+    <div className="w-full h-full flex flex-col bg-white border border-[#E5E5E8] rounded-2xl shadow-sm overflow-hidden">
       <div className="px-4 py-3 border-b border-[#F1F1F4] flex items-center justify-between bg-[#FAFAFA]">
         <span className="text-[11px] font-semibold text-[#6B6B72] uppercase tracking-wider">Painéis</span>
         <button
@@ -267,7 +267,7 @@ export default function TreinamentoPainel() {
   }
 
   return (
-    <div className="flex flex-col overflow-hidden" style={{ height: "100%", overflow: "hidden" }}>
+    <div className="flex flex-col" style={{ height: "100%", overflow: "hidden" }}>
 
       {/* Header */}
       <motion.div
@@ -314,13 +314,15 @@ export default function TreinamentoPainel() {
       </motion.div>
 
       {/* Body: 3 colunas */}
-      <div className="flex flex-1 min-h-0 gap-4 px-6 pb-6">
+      <div className="flex flex-1 min-h-0 gap-4 px-6 pb-6 flex-row overflow-hidden">
 
         {/* COL 1: Lista de painéis */}
         <motion.div
           initial={{ opacity: 0, x: -10 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.25 }}
+          className="flex-shrink-0"
+          style={{ width: 224 }}
         >
           <PainelSidebar
             paineis={paineis}
@@ -336,7 +338,8 @@ export default function TreinamentoPainel() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25, delay: 0.05 }}
-          className="w-72 flex-shrink-0 flex flex-col gap-3 overflow-y-auto"
+          className="flex-shrink-0 flex flex-col gap-3 overflow-y-auto"
+          style={{ width: 288 }}
         >
           {selectedPainel ? (
             <>
@@ -420,7 +423,7 @@ export default function TreinamentoPainel() {
           initial={{ opacity: 0, x: 10 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.25, delay: 0.08 }}
-          className="flex-1 min-w-0 bg-white border border-[#E5E5E8] rounded-2xl shadow-sm overflow-hidden flex flex-col"
+          className="flex-1 min-w-0 min-h-0 bg-white border border-[#E5E5E8] rounded-2xl shadow-sm overflow-hidden flex flex-col"
         >
           {selectedPainel ? (
             <PainelCanvas
