@@ -208,18 +208,22 @@ function ComponentPopover({ comp, previewX, previewY, onUpdate, onDelete, onClos
                 value={!!local.regra_emenda}
                 onChange={v => upd("regra_emenda", v)}
                 label="Regra de Emenda Industrial (limite 244cm)"
-                hint="Divide sarrafos maiores que 244cm em peças de 200cm + emenda"
+                hint="Desconta 7cm do topo e modula em peças de 200cm + emenda"
               />
               {local.regra_emenda && (
                 <div className="mt-2 bg-[#F5F3FF] border border-[#DDD6FE] rounded-lg px-2.5 py-2">
-                  <p className="text-[9px] font-semibold text-[#7C3AED] mb-1.5">Prévia com [X]={X}mm:</p>
-                  {emendaPreview && emendaPreview.map((p, i) => (
-                    <div key={i} className="flex items-center gap-1.5 mb-0.5">
-                      <span className="font-mono text-[10px] font-bold text-[#6D28D9]">{p.quantidade}×</span>
-                      <span className="font-mono text-[10px] text-[#5B21B6]">{p.comprimento_cm}cm</span>
-                      <span className="text-[9px] text-[#8B5CF6] italic">{p.descricao}</span>
-                    </div>
-                  ))}
+                  <p className="text-[9px] font-semibold text-[#7C3AED] mb-1">
+                    [X]={X}cm → saldo={X - 7}cm após desconto de 7cm
+                  </p>
+                  <div className="flex flex-col gap-0.5">
+                    {emendaPreview && emendaPreview.map((p, i) => (
+                      <div key={i} className="flex items-center gap-1.5">
+                        <span className="font-mono text-[11px] font-bold text-[#6D28D9] w-5 text-right">{p.quantidade}×</span>
+                        <span className="font-mono text-[11px] text-[#5B21B6] font-semibold">{p.comprimento_cm}cm</span>
+                        <span className="text-[9px] text-[#8B5CF6] italic">{p.descricao}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -377,7 +381,7 @@ const BOTOES = [
 ];
 const DEFAULTS = {
   compensado:         { espessura_mm: 18, formula_largura: "[Y]", formula_comprimento: "[X]", quantidade: 1 },
-  sarrafo_vertical:   { largura_mm: 40, espessura_mm: 20, formula_comprimento: "[X]", quantidade: 2, regra_emenda: false, regra_qty_y: false, qty_extra: 2 },
+  sarrafo_vertical:   { largura_mm: 40, espessura_mm: 20, formula_comprimento: "[X]", quantidade: 2, regra_emenda: true, regra_qty_y: true, qty_extra: 2 },
   sarrafo_acabamento: { largura_mm: 30, espessura_mm: 20, formula_comprimento: "[Y]", quantidade: 3 },
 };
 

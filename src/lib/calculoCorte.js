@@ -25,8 +25,9 @@ export function resolveFormula(formula, X, Y) {
  * @returns {Array<{comprimento_cm, quantidade, descricao}>}
  */
 export function calcularEmendaSarrafo(comp, X, Y) {
-  const comprimento_mm = resolveFormula(comp.formula_comprimento, X, Y);
-  const comprimento_cm = comprimento_mm / 10;
+  // X e Y em mm → converter para cm
+  const X_cm = X / 10;
+  const comprimento_cm = X_cm; // sarrafo vertical tem comprimento = [X]
   const qtdSarrafos = calcularQuantidadeSarrafos(comp, Y / 10);
 
   if (!comp.regra_emenda || comprimento_cm <= LIMITE_SARRAFO_CM) {
@@ -34,20 +35,26 @@ export function calcularEmendaSarrafo(comp, X, Y) {
     return [{ comprimento_cm: Math.round(comprimento_cm), quantidade: qtdSarrafos, descricao: "Peça inteira" }];
   }
 
-  // Aplica regra de emenda industrial
-  const altura_cm = X / 10;
-  const saldo_cm = altura_cm - DESCONTO_ACABAMENTO_TOPO_CM; // desconta sarrafo de acabamento do topo
+  // Aplica regra de emenda industrial:
+  // Passo 1: desconta 7cm do sarrafo de acabamento do topo
+  const saldo_cm = X_cm - DESCONTO_ACABAMENTO_TOPO_CM; // ex: 324 - 7 = 317
 
+  // Passo 2: modula em peças de 200cm + emenda com o restante
   const pecas = [];
   let restante = saldo_cm;
 
-  while (restante > 0) {
+  while (restante > 0.5) {
     const peca = Math.min(MODULO_PECA_CM, restante);
-    const existing = pecas.find(p => Math.abs(p.comprimento_cm - Math.round(peca)) < 0.5);
+    const rounded = Math.round(peca);
+    const existing = pecas.find(p => p.comprimento_cm === rounded);
     if (existing) {
       existing.quantidade += qtdSarrafos;
     } else {
-      pecas.push({ comprimento_cm: Math.round(peca), quantidade: qtdSarrafos, descricao: peca >= MODULO_PECA_CM ? "Peça padrão" : "Peça de emenda" });
+      pecas.push({
+        comprimento_cm: rounded,
+        quantidade: qtdSarrafos,
+        descricao: peca >= MODULO_PECA_CM ? "Peça padrão (200cm)" : "Peça de emenda",
+      });
     }
     restante -= peca;
   }
@@ -95,6 +102,7 @@ export function gerarPlanoCorte(painel, X, Y) {
     if (comp.tipo === "sarrafo_vertical") {
       const largura_cm = (parseFloat(comp.largura_mm) || 40) / 10;
       const espessura  = (parseFloat(comp.espessura_mm) || 20) / 10;
+      // X e Y já estão em mm (gerarPlanoCorte recebe mm)
       const emenda     = calcularEmendaSarrafo(comp, X, Y);
       grupos.push({
         label: "Sarrafo Vertical",
