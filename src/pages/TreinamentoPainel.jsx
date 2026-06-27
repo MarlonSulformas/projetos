@@ -359,21 +359,21 @@ export default function TreinamentoPainel() {
                 {/* Variáveis */}
                 <div className="bg-[#F8F9FB] border border-[#E5E5E8] rounded-xl p-3">
                   <p className="text-[10px] font-semibold text-[#6B6B72] uppercase tracking-wider mb-2">Variáveis Dinâmicas</p>
-                  <div className="flex gap-2">
-                    <div className="flex-1 flex flex-col gap-1">
-                      <span className="text-[10px] text-[#6B6B72]">[X] = Altura Total</span>
-                      <div className="flex items-center border border-[#BFDBFE] rounded-lg overflow-hidden bg-white">
-                        <span className="px-2 text-[10px] font-mono font-bold text-[#3B82F6] bg-[#EFF6FF] border-r border-[#BFDBFE] py-1.5">[X]</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <span className="text-[10px] text-[#6B6B72] truncate">[X] = Altura Total</span>
+                      <div className="flex items-center border border-[#BFDBFE] rounded-lg overflow-hidden bg-white w-full">
+                        <span className="px-1.5 text-[10px] font-mono font-bold text-[#3B82F6] bg-[#EFF6FF] border-r border-[#BFDBFE] py-1.5 flex-shrink-0">[X]</span>
                         <input type="number" value={previewX} onChange={e => setPreviewX(e.target.value)}
-                          className="flex-1 px-2 py-1.5 text-xs text-center focus:outline-none" placeholder="324" />
+                          className="min-w-0 w-full px-1 py-1.5 text-xs text-center focus:outline-none" placeholder="324" />
                       </div>
                     </div>
-                    <div className="flex-1 flex flex-col gap-1">
-                      <span className="text-[10px] text-[#6B6B72]">[Y] = Largura Total</span>
-                      <div className="flex items-center border border-[#DDD6FE] rounded-lg overflow-hidden bg-white">
-                        <span className="px-2 text-[10px] font-mono font-bold text-[#8B5CF6] bg-[#F5F3FF] border-r border-[#DDD6FE] py-1.5">[Y]</span>
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <span className="text-[10px] text-[#6B6B72] truncate">[Y] = Largura Total</span>
+                      <div className="flex items-center border border-[#DDD6FE] rounded-lg overflow-hidden bg-white w-full">
+                        <span className="px-1.5 text-[10px] font-mono font-bold text-[#8B5CF6] bg-[#F5F3FF] border-r border-[#DDD6FE] py-1.5 flex-shrink-0">[Y]</span>
                         <input type="number" value={previewY} onChange={e => setPreviewY(e.target.value)}
-                          className="flex-1 px-2 py-1.5 text-xs text-center focus:outline-none" placeholder="19" />
+                          className="min-w-0 w-full px-1 py-1.5 text-xs text-center focus:outline-none" placeholder="19" />
                       </div>
                     </div>
                   </div>
