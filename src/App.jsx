@@ -16,6 +16,7 @@ import Home from '@/pages/Home';
 import Projetistas from '@/pages/Projetistas';
 import Configuracao from '@/pages/Configuracao';
 import RegraSecao from '@/pages/RegraSecao';
+import TreinamentoPainel from '@/pages/TreinamentoPainel';
 import AppLayout from '@/components/layout/AppLayout';
 
 const AuthenticatedApp = () => {
@@ -53,6 +54,7 @@ const AuthenticatedApp = () => {
           <Route path="/projetistas" element={<Projetistas />} />
           <Route path="/configuracao" element={<Configuracao />} />
           <Route path="/regra-secao" element={<RegraSecao />} />
+          <Route path="/treinamento-painel" element={<TreinamentoPainel />} />
         </Route>
       </Route>
       <Route path="*" element={<PageNotFound />} />

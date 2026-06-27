@@ -1,0 +1,32 @@
+{
+  "name": "TemplatePainel",
+  "type": "object",
+  "properties": {
+    "produto_id": {
+      "type": "string"
+    },
+    "projetista_id": {
+      "type": "string"
+    },
+    "nome_painel": {
+      "type": "string"
+    },
+    "variavel_x_label": {
+      "type": "string",
+      "default": "Altura Total"
+    },
+    "variavel_y_label": {
+      "type": "string",
+      "default": "Largura Total"
+    },
+    "area_captura_id": {
+      "type": "string"
+    },
+    "componentes_estrutura": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "nome_painel"
+  ]
+}

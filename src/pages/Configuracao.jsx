@@ -367,9 +367,9 @@ export default function Configuracao() {
             <p className="text-xs text-[#6B6B72] mt-0.5">Indique em quais regiões da folha padrão ficam os blocos principais de informação.</p>
           </div>
         </div>
-        <Link to="/regra-secao">
+        <Link to="/treinamento-painel">
           <Button className="h-9 bg-[#1D4ED8] hover:bg-[#1E40AF] text-white rounded-xl text-sm font-medium shadow-sm gap-2 px-4 flex-shrink-0">
-            Avançar para Regras (Passo 2)
+            Avançar para Treinamento (Passo 2)
             <ArrowRight className="w-4 h-4" />
           </Button>
         </Link>
