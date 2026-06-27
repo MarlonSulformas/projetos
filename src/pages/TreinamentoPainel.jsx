@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, ChevronRight, Layers, Box, AlignJustify, Save, Check, Info } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, ChevronRight, Layers, Box, Save, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
 import PainelCanvas from "@/components/treinamento/PainelCanvas";
@@ -377,48 +377,36 @@ export default function TreinamentoPainel() {
                 </div>
               </div>
 
-              {/* Adicionar componentes */}
-              <div className="bg-white border border-[#E5E5E8] rounded-2xl shadow-sm p-4">
-                <p className="text-[10px] font-semibold text-[#6B6B72] uppercase tracking-wider mb-2">Adicionar Componente</p>
-                <div className="flex flex-col gap-1.5">
-                  {TIPOS_COMPONENTE.map(meta => (
-                    <button
-                      key={meta.tipo}
-                      onClick={() => addComponente(meta.tipo)}
-                      className="flex items-center gap-2.5 px-3 py-2 rounded-xl border transition-all hover:shadow-sm text-left"
-                      style={{ borderColor: meta.corBorder, backgroundColor: meta.corBg }}
-                    >
-                      <span className="text-base w-5 text-center" style={{ color: meta.cor }}>{meta.icon}</span>
-                      <div>
-                        <p className="text-xs font-semibold" style={{ color: meta.cor }}>{meta.label}</p>
-                      </div>
-                      <Plus className="w-3 h-3 ml-auto flex-shrink-0" style={{ color: meta.cor }} />
-                    </button>
-                  ))}
-                </div>
+              {/* Lista compacta de componentes */}
+              <div className="bg-white border border-[#E5E5E8] rounded-2xl shadow-sm p-4 flex-1 min-h-0 overflow-y-auto">
+                <p className="text-[10px] font-semibold text-[#6B6B72] uppercase tracking-wider mb-2">
+                  Componentes ({selectedPainel.componentes.length})
+                </p>
+                {selectedPainel.componentes.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-6 gap-2 text-center">
+                    <Box className="w-5 h-5 text-[#D1D5DB]" />
+                    <p className="text-[10px] text-[#9CA3AF] leading-relaxed">
+                      Use os botões no canvas<br />para adicionar peças.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-1.5">
+                    {selectedPainel.componentes.map(comp => {
+                      const LABELS = { compensado: "Compensado", sarrafo_vertical: "Sarrafo Vertical", sarrafo_acabamento: "Sarrafo Acabamento" };
+                      const COLORS = { compensado: "#3B82F6", sarrafo_vertical: "#F59E0B", sarrafo_acabamento: "#10B981" };
+                      return (
+                        <div key={comp.id} className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-[#F8F9FB] border border-[#F1F1F4]">
+                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[comp.tipo] || "#6B7280" }} />
+                          <span className="flex-1 text-xs text-[#374151] truncate">{LABELS[comp.tipo] || comp.tipo}</span>
+                          <button onClick={() => deleteComponente(comp.id)} className="w-4 h-4 flex items-center justify-center text-[#D1D5DB] hover:text-red-400 flex-shrink-0">
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-
-              {/* Lista de componentes configurados */}
-              {selectedPainel.componentes.length > 0 && (
-                <div className="flex flex-col gap-2">
-                  <p className="text-[10px] font-semibold text-[#6B6B72] uppercase tracking-wider px-1">Estrutura do Painel</p>
-                  {selectedPainel.componentes.map(comp => (
-                    <ComponenteEditor
-                      key={comp.id}
-                      comp={comp}
-                      onChange={updateComponente}
-                      onDelete={deleteComponente}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {selectedPainel.componentes.length === 0 && (
-                <div className="bg-[#F8F9FB] border border-dashed border-[#D1D5DB] rounded-2xl flex flex-col items-center justify-center py-8 gap-2">
-                  <Box className="w-6 h-6 text-[#D1D5DB]" />
-                  <p className="text-[11px] text-[#9CA3AF] text-center">Adicione compensados,<br />sarrafos e travamentos acima.</p>
-                </div>
-              )}
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center text-[#9CA3AF] text-sm">
@@ -427,33 +415,35 @@ export default function TreinamentoPainel() {
           )}
         </motion.div>
 
-        {/* COL 3: Canvas de prévia paramétrica */}
+        {/* COL 3: Canvas interativo */}
         <motion.div
           initial={{ opacity: 0, x: 10 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.25, delay: 0.08 }}
           className="flex-1 min-w-0 bg-white border border-[#E5E5E8] rounded-2xl shadow-sm overflow-hidden flex flex-col"
         >
-          <div className="px-4 py-2.5 border-b border-[#F1F1F4] bg-[#FAFAFA] flex items-center justify-between flex-shrink-0">
-            <span className="text-xs font-semibold text-[#374151]">Canvas de Modelagem Paramétrica</span>
-            <div className="flex items-center gap-2 text-[10px] text-[#9CA3AF]">
-              <span className="font-mono font-bold text-[#3B82F6]">[X]={previewX}</span>
-              <span className="font-mono font-bold text-[#8B5CF6]">[Y]={previewY}</span>
+          {selectedPainel ? (
+            <PainelCanvas
+              painel={selectedPainel}
+              previewX={parseFloat(previewX) || 324}
+              previewY={parseFloat(previewY) || 19}
+              onAddComponente={comp => setPaineis(prev => prev.map(p =>
+                p.id === selectedId ? { ...p, componentes: [...p.componentes, comp] } : p
+              ))}
+              onUpdateComponente={comp => setPaineis(prev => prev.map(p =>
+                p.id === selectedId
+                  ? { ...p, componentes: p.componentes.map(c => c.id === comp.id ? comp : c) }
+                  : p
+              ))}
+              onDeleteComponente={id => setPaineis(prev => prev.map(p =>
+                p.id === selectedId ? { ...p, componentes: p.componentes.filter(c => c.id !== id) } : p
+              ))}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-[#9CA3AF] text-sm">
+              Selecione um painel para visualizar
             </div>
-          </div>
-          <div className="flex-1 min-h-0">
-            {selectedPainel ? (
-              <PainelCanvas
-                painel={selectedPainel}
-                previewX={parseFloat(previewX) || 324}
-                previewY={parseFloat(previewY) || 19}
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-[#9CA3AF] text-sm">
-                Selecione um painel para visualizar
-              </div>
-            )}
-          </div>
+          )}
         </motion.div>
       </div>
     </div>
