@@ -28,38 +28,28 @@ export function resolveFormula(formula, X, Y) {
 export function calcularEmendaSarrafo(comp, X_mm, Y_mm, folga_extra_cm = 0) {
   const X_cm = X_mm / 10;
   const folga = parseFloat(comp.folga) || 0;
-  // Comprimento líquido = X - folga do componente - espessura acabamento descontada
-  const comprimento_base = X_cm - folga - folga_extra_cm;
   const qtdSarrafos = calcularQuantidadeSarrafos(comp, Y_mm / 10);
 
-  if (!comp.regra_emenda || comprimento_base <= LIMITE_SARRAFO_CM) {
-    return [{ comprimento_cm: Math.round(comprimento_base * 10) / 10, quantidade: qtdSarrafos, descricao: "Peça inteira" }];
+  // SaldoVertical = X - Espessura_Acabamento(7) - Folga_Configurada
+  // folga_extra_cm representa a espessura do sarrafo de acabamento do topo
+  const saldoVertical = X_cm - folga_extra_cm - folga;
+
+  if (!comp.regra_emenda || saldoVertical <= LIMITE_SARRAFO_CM) {
+    return [{
+      comprimento_cm: Math.round(saldoVertical * 10) / 10,
+      quantidade: qtdSarrafos,
+      descricao: "Peça inteira",
+    }];
   }
 
-  // Aplica regra de emenda industrial:
-  // Desconta 7cm do sarrafo de acabamento do topo
-  const saldo_cm = comprimento_base - DESCONTO_ACABAMENTO_TOPO_CM;
+  // Emenda industrial: peça base travada em 200cm + emenda = SaldoVertical - 200
+  const pecaBase   = MODULO_PECA_CM;
+  const pecaEmenda = Math.round((saldoVertical - pecaBase) * 10) / 10;
 
-  const pecas = [];
-  let restante = saldo_cm;
-
-  while (restante > 0.5) {
-    const peca = Math.min(MODULO_PECA_CM, restante);
-    const rounded = Math.round(peca * 10) / 10;
-    const existing = pecas.find(p => p.comprimento_cm === rounded);
-    if (existing) {
-      existing.quantidade += qtdSarrafos;
-    } else {
-      pecas.push({
-        comprimento_cm: rounded,
-        quantidade: qtdSarrafos,
-        descricao: peca >= MODULO_PECA_CM ? "Peça padrão (200cm)" : "Peça de emenda",
-      });
-    }
-    restante -= peca;
-  }
-
-  return pecas;
+  return [
+    { comprimento_cm: pecaBase,   quantidade: qtdSarrafos, descricao: "Peça padrão (200cm)" },
+    { comprimento_cm: pecaEmenda, quantidade: qtdSarrafos, descricao: "Peça de emenda" },
+  ];
 }
 
 /**
@@ -113,9 +103,8 @@ export function gerarPlanoCorte(painel, X_mm, Y_mm) {
 
     if (comp.tipo === "sarrafo_vertical") {
       const largura_cm = parseFloat(comp.largura_mm) || 4;
-      // Desconta espessura de acabamento do topo + folga do próprio sarrafo
-      const folga_extra = espAcabTopo_cm;
-      const emenda = calcularEmendaSarrafo(comp, X_mm, Y_mm, folga_extra);
+      // Desconta a espessura fixa do sarrafo de acabamento do topo (7cm industrial)
+      const emenda = calcularEmendaSarrafo(comp, X_mm, Y_mm, DESCONTO_ACABAMENTO_TOPO_CM);
       grupos.push({
         label: "Sarrafo Vertical",
         cor: "#F59E0B",
