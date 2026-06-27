@@ -49,6 +49,7 @@ export default function BlueprintCanvas({
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
   const pdfUrlRef = useRef(null);
+  const renderTaskRef = useRef(null); // tracks the active pdfjs render task
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
   const [renderTick, setRenderTick] = useState(0);
 
@@ -110,8 +111,23 @@ export default function BlueprintCanvas({
       canvas.style.width = `${canvasW}px`;
       canvas.style.height = `${canvasH}px`;
 
+      // Cancel any in-flight render before starting a new one
+      if (renderTaskRef.current) {
+        renderTaskRef.current.cancel();
+        renderTaskRef.current = null;
+      }
+      if (cancelled) return;
+
       const ctx = canvas.getContext("2d");
-      await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
+      const task = page.render({ canvasContext: ctx, viewport: scaledViewport });
+      renderTaskRef.current = task;
+      try {
+        await task.promise;
+      } catch (e) {
+        if (e?.name === "RenderingCancelledException") return;
+        throw e;
+      }
+      renderTaskRef.current = null;
       if (!cancelled) setCanvasSize({ w: canvasW, h: canvasH });
     }
 
