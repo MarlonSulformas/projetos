@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, Users, Settings, Building2, Menu, X, Box } from "lucide-react";
+import { LayoutDashboard, Users, Settings, Building2, Menu, X, Box, FileText } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Painel Principal", path: "/" },
   { icon: Users, label: "Projetistas e Produtos", path: "/projetistas" },
   { icon: Settings, label: "Configuração / Treinamento", path: "/configuracao" },
+  { icon: FileText, label: "Lista de Corte", path: "/lista-corte" },
   { icon: Building2, label: "Gestão de Obras", path: "/obras" },
 ];
 

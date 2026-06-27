@@ -305,6 +305,12 @@ export default function TreinamentoPainel() {
               Passo 1
             </Button>
           </Link>
+          <Link to="/lista-corte">
+            <Button variant="outline" className="h-9 rounded-xl text-sm font-medium gap-2 px-4">
+              Passo 3 — Lista de Corte
+              <ArrowLeft className="w-4 h-4 rotate-180" />
+            </Button>
+          </Link>
           <button
             onClick={handleSave}
             disabled={saving || saved}
