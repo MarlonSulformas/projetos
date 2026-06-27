@@ -17,6 +17,18 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLi
  * Aqui usamos a camada de texto do pdfjs para extrair strings da região.
  */
 async function extrairTextoRegiao(page, rect) {
+  // Guard: se rect ou qualquer coordenada estiver ausente, retorna string vazia
+  if (
+    !rect ||
+    typeof rect.x === "undefined" || rect.x === null ||
+    typeof rect.y === "undefined" || rect.y === null ||
+    typeof rect.width === "undefined" || rect.width === null || rect.width <= 0 ||
+    typeof rect.height === "undefined" || rect.height === null || rect.height <= 0
+  ) {
+    console.warn("extrairTextoRegiao: coordenadas inválidas ou ausentes", rect);
+    return "";
+  }
+
   const viewport = page.getViewport({ scale: 1 });
   const { x, y, width, height } = rect;
   // Converter normalizado → unidades do PDF
@@ -111,15 +123,25 @@ function TabelaPilar({ pilar, index }) {
         </div>
         <div className="flex-1 text-left">
           <p className="text-sm font-semibold text-[#0F0F0F]">{pilar.nome}</p>
-          <p className="text-[10px] text-[#9CA3AF]">
-            [X]={pilar.x}cm · [Y]={pilar.y}cm · {totalPecas} peças totais
-          </p>
+          {pilar.aviso ? (
+            <p className="text-[10px] text-[#F59E0B] font-medium">{pilar.aviso}</p>
+          ) : (
+            <p className="text-[10px] text-[#9CA3AF]">
+              [X]={pilar.x}cm · [Y]={pilar.y}cm · {totalPecas} peças totais
+            </p>
+          )}
         </div>
         <span className="text-xs text-[#9CA3AF] font-mono mr-2">{pilar.linhas.length} tipos</span>
         {open ? <ChevronUp className="w-4 h-4 text-[#9CA3AF]" /> : <ChevronDown className="w-4 h-4 text-[#9CA3AF]" />}
       </button>
 
-      {open && (
+      {open && pilar.aviso && (
+        <div className="px-5 py-4 border-t border-[#FEF3C7] bg-[#FFFBEB]">
+          <p className="text-xs text-[#B45309]">{pilar.aviso}</p>
+          <p className="text-[10px] text-[#D97706] mt-1">Verifique se a área de captura do Passo 1 cobre corretamente a região dimensional desta página.</p>
+        </div>
+      )}
+      {open && !pilar.aviso && (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -160,6 +182,7 @@ function TabelaPilar({ pilar, index }) {
   );
 }
 
+
 // ── Página principal ───────────────────────────────────────────────────────────
 export default function ListaCorte() {
   const [processando, setProcessando] = useState(false);
@@ -183,8 +206,13 @@ export default function ListaCorte() {
       ]);
 
       const templates = templatesRaw || [];
-      const gabaritos = (gabaritosRaw.data?.data || []).filter(g =>
-        g.largura > 0 && g.largura < 1 // coordenadas normalizadas
+      const gabaritosAll = gabaritosRaw.data?.data || [];
+      const gabaritos = gabaritosAll.filter(g =>
+        g != null &&
+        typeof g.largura === "number" && g.largura > 0 && g.largura <= 1 &&
+        typeof g.altura === "number" && g.altura > 0 && g.altura <= 1 &&
+        typeof g.coordenada_x === "number" &&
+        typeof g.coordenada_y === "number"
       );
 
       // Gabaritos com tag_funcao painel_bruto = captura X e Y
@@ -224,46 +252,65 @@ export default function ListaCorte() {
 
         const page = await pdf.getPage(pageNum);
 
-        // Extrair texto da região do painel bruto
-        const textoPainel = await extrairTextoRegiao(page, {
-          x: gabX.coordenada_x,
-          y: gabX.coordenada_y,
-          width: gabX.largura,
-          height: gabX.altura,
-        });
+        // Extrair texto da região do painel bruto — com guard de coordenadas
+        let textoPainel = "";
+        try {
+          textoPainel = await extrairTextoRegiao(page, {
+            x: gabX.coordenada_x,
+            y: gabX.coordenada_y,
+            width: gabX.largura,
+            height: gabX.altura,
+          });
+        } catch (extractErr) {
+          console.warn(`Página ${pageNum}: erro ao extrair texto do painel —`, extractErr.message);
+        }
 
         // Extrair ID do elemento se gabarito disponível
         let nomeElemento = `Pilar P${pageNum}`;
         if (gabId) {
-          const textoId = await extrairTextoRegiao(page, {
-            x: gabId.coordenada_x,
-            y: gabId.coordenada_y,
-            width: gabId.largura,
-            height: gabId.altura,
-          });
-          if (textoId) nomeElemento = textoId;
-        }
-
-        // Parsear X e Y do texto capturado
-        // Tenta formato "324x19", "324 x 19", "324 19" etc.
-        let X = null, Y = null;
-        const matchDimensional = textoPainel.match(/(\d[\d.,]*)\s*[xX×]\s*(\d[\d.,]*)/);
-        if (matchDimensional) {
-          X = parseNumero(matchDimensional[1]);
-          Y = parseNumero(matchDimensional[2]);
-        } else {
-          // Tenta extrair dois números separados
-          const nums = textoPainel.match(/\d[\d.,]*/g);
-          if (nums && nums.length >= 2) {
-            X = parseNumero(nums[0]);
-            Y = parseNumero(nums[1]);
-          } else if (nums && nums.length === 1) {
-            X = parseNumero(nums[0]);
+          try {
+            const textoId = await extrairTextoRegiao(page, {
+              x: gabId.coordenada_x,
+              y: gabId.coordenada_y,
+              width: gabId.largura,
+              height: gabId.altura,
+            });
+            if (textoId) nomeElemento = textoId;
+          } catch (idErr) {
+            console.warn(`Página ${pageNum}: erro ao extrair ID do elemento —`, idErr.message);
           }
         }
 
-        // Se não extraiu dimensões válidas, pula a página
-        if (!X || X < 1) continue;
+        // Parsear X e Y do texto capturado
+        let X = null, Y = null;
+        if (textoPainel) {
+          const matchDimensional = textoPainel.match(/(\d[\d.,]*)\s*[xX×]\s*(\d[\d.,]*)/);
+          if (matchDimensional) {
+            X = parseNumero(matchDimensional[1]);
+            Y = parseNumero(matchDimensional[2]);
+          } else {
+            const nums = textoPainel.match(/\d[\d.,]*/g);
+            if (nums && nums.length >= 2) {
+              X = parseNumero(nums[0]);
+              Y = parseNumero(nums[1]);
+            } else if (nums && nums.length === 1) {
+              X = parseNumero(nums[0]);
+            }
+          }
+        }
+
+        // Se não extraiu dimensões válidas, registra aviso e pula a página
+        if (!X || X < 1) {
+          console.warn(`Página ${pageNum} (${nomeElemento}): Aviso — Dimensões não encontradas para o Painel nesta página. Texto capturado: "${textoPainel}"`);
+          resultados.push({
+            nome: nomeElemento,
+            x: null, y: null,
+            aviso: "Aviso: Dimensões não encontradas para o Painel nesta página.",
+            linhas: [],
+            pagina: pageNum,
+          });
+          continue;
+        }
         if (!Y || Y < 1) Y = 19; // fallback para largura padrão
 
         // 3. Gerar plano de corte com o motor
