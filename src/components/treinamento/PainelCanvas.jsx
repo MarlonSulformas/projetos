@@ -1,6 +1,7 @@
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback, useRef } from "react";
 import { Plus, Trash2, X as XIcon, FlaskConical, Check, Loader2 } from "lucide-react";
 import { resolveFormula, calcularEmendaSarrafo, calcularQuantidadeSarrafos, gerarPlanoCorte } from "@/lib/calculoCorte";
+import PlanoCortePreview from "@/components/treinamento/PlanoCortePreview";
 
 // ── Colour palette ─────────────────────────────────────────────────────────────
 const CORES = {
@@ -16,7 +17,6 @@ const COMP_LABELS = {
   sarrafo_acabamento: "Sarrafo de Acabamento",
 };
 
-// Ancoragem options
 const ANCORAGEM_OPTIONS = [
   { value: "topo",    label: "Topo do Painel" },
   { value: "base",    label: "Base do Painel" },
@@ -24,11 +24,13 @@ const ANCORAGEM_OPTIONS = [
   { value: "livre",   label: "Posição Livre (Manual)" },
 ];
 
+// Threshold em px: se o centro da peça arrastada estiver dentro deste limite do topo/base → ancora
+const SNAP_THRESHOLD_RATIO = 0.15; // 15% da altura do painel
+
 // ── Layout engine ──────────────────────────────────────────────────────────────
-// Calcula a espessura total dos sarrafos de acabamento ancorados no topo
 function getEspessuraAcabamentoTopo(componentes) {
   return componentes
-    .filter(c => c.tipo === "sarrafo_acabamento" && c.ancoragem === "topo")
+    .filter(c => c.tipo === "sarrafo_acabamento" && (c.ancoragem === "topo" || !c.ancoragem))
     .reduce((sum, c) => sum + (parseFloat(c.largura_mm) || 0), 0);
 }
 function getEspessuraAcabamentoBase(componentes) {
@@ -58,36 +60,26 @@ function computeLayout(componentes, X, Y, canvasW, canvasH) {
       });
 
     } else if (comp.tipo === "sarrafo_vertical") {
-      const larg = (parseFloat(comp.largura_mm) || 40) * scale;
+      const larg = (parseFloat(comp.largura_mm) || 4) * scale;
       const folga = parseFloat(comp.folga) || 0;
       const ancoragem = comp.ancoragem || "topo";
-
-      // Calcula offset do topo considerando sarrafos de acabamento acima e folga
       const espAcabTopo = getEspessuraAcabamentoTopo(componentes);
-      const offsetTopo = (espAcabTopo + folga) * scale;
       const espAcabBase = getEspessuraAcabamentoBase(componentes);
+      const offsetTopo = (espAcabTopo + folga) * scale;
       const offsetBase = (espAcabBase + folga) * scale;
-
-      // Comprimento efetivo descontando folga e espessura de acabamento
       let comprimento = resolveFormula(comp.formula_comprimento, X, Y);
-      // Se a fórmula não desconta, descontamos automaticamente a folga visualmente
-      const comprimentoPx = (comprimento - folga - (ancoragem === "topo" || ancoragem === "base" ? espAcabTopo + espAcabBase : 0)) * scale;
-      const ph = Math.max(4, comprimentoPx);
-
-      // Posição Y no canvas baseada na ancoragem
+      const comprimentoPx = Math.max(4, (comprimento - folga - espAcabTopo - espAcabBase) * scale);
       let py;
       if (ancoragem === "topo") {
         py = oy + offsetTopo;
       } else if (ancoragem === "base") {
-        py = oy + panelPxH - offsetBase - ph;
+        py = oy + panelPxH - offsetBase - comprimentoPx;
       } else if (ancoragem === "livre") {
         const distTopo = parseFloat(comp.distancia_topo) || 0;
         py = oy + (distTopo + folga) * scale;
       } else {
-        // default: topo
         py = oy + offsetTopo;
       }
-
       const qty = calcularQuantidadeSarrafos(comp, Y / 10);
       const positions = qty === 1
         ? [ox + panelPxW / 2 - larg / 2]
@@ -97,28 +89,26 @@ function computeLayout(componentes, X, Y, canvasW, canvasH) {
             return ox + (panelPxW / (qty - 1)) * i - larg / 2;
           });
       positions.forEach((px, i) => {
-        items.push({ id: `${comp.id}-${i}`, tipo: comp.tipo, comp, px, py, pw: larg, ph });
+        items.push({ id: `${comp.id}-${i}`, tipo: comp.tipo, comp, px, py, pw: larg, ph: comprimentoPx });
       });
 
     } else if (comp.tipo === "sarrafo_acabamento") {
-      const larg = (parseFloat(comp.largura_mm) || 30) * scale;
+      const larg = (parseFloat(comp.largura_mm) || 3) * scale;
       const pw = resolveFormula(comp.formula_comprimento, X, Y) * scale;
       const ancoragem = comp.ancoragem || "topo";
       const folga = parseFloat(comp.folga) || 0;
       const qty = parseInt(comp.quantidade) || 1;
 
       if (ancoragem === "topo") {
-        // Stack from top
         let curY = oy + folga * scale;
         for (let i = 0; i < qty; i++) {
-          items.push({ id: `${comp.id}-${i}`, tipo: comp.tipo, comp, px: ox, py: curY, pw, ph: larg });
+          items.push({ id: `${comp.id}-${i}`, tipo: comp.tipo, comp, px: ox, py: curY, pw, ph: larg, draggable: true });
           curY += larg;
         }
       } else if (ancoragem === "base") {
-        // Stack from bottom
         let curY = oy + panelPxH - folga * scale - larg * qty;
         for (let i = 0; i < qty; i++) {
-          items.push({ id: `${comp.id}-${i}`, tipo: comp.tipo, comp, px: ox, py: curY, pw, ph: larg });
+          items.push({ id: `${comp.id}-${i}`, tipo: comp.tipo, comp, px: ox, py: curY, pw, ph: larg, draggable: true });
           curY += larg;
         }
       } else if (ancoragem === "livre") {
@@ -126,15 +116,14 @@ function computeLayout(componentes, X, Y, canvasW, canvasH) {
         for (let i = 0; i < qty; i++) {
           items.push({
             id: `${comp.id}-${i}`, tipo: comp.tipo, comp,
-            px: ox, py: oy + (distTopo + folga + i * (parseFloat(comp.largura_mm) || 30)) * scale,
-            pw, ph: larg,
+            px: ox, py: oy + (distTopo + folga + i * (parseFloat(comp.largura_mm) || 3)) * scale,
+            pw, ph: larg, draggable: true,
           });
         }
       } else {
-        // lateral / fallback: distribute evenly
         const spacing = panelPxH / (qty + 1);
         for (let i = 0; i < qty; i++) {
-          items.push({ id: `${comp.id}-${i}`, tipo: comp.tipo, comp, px: ox, py: oy + spacing * (i + 1) - larg / 2, pw, ph: larg });
+          items.push({ id: `${comp.id}-${i}`, tipo: comp.tipo, comp, px: ox, py: oy + spacing * (i + 1) - larg / 2, pw, ph: larg, draggable: true });
         }
       }
     }
@@ -143,12 +132,16 @@ function computeLayout(componentes, X, Y, canvasW, canvasH) {
   return { items, ox, oy, panelPxW, panelPxH, scale };
 }
 
-// ── SVG wood rect ──────────────────────────────────────────────────────────────
+// ── SVG wood rect (com drag) ───────────────────────────────────────────────────
 let grainCounter = 0;
-function WoodRect({ px, py, pw, ph, cor, selected, onClick, dimLabel }) {
+function WoodRect({ px, py, pw, ph, cor, selected, onClick, dimLabel, draggable, onDragStart }) {
   const gid = useMemo(() => `g${++grainCounter}`, []);
   return (
-    <g onClick={onClick} style={{ cursor: "pointer" }}>
+    <g
+      onClick={onClick}
+      onMouseDown={draggable ? onDragStart : undefined}
+      style={{ cursor: draggable ? "grab" : "pointer" }}
+    >
       <defs>
         <pattern id={gid} patternUnits="userSpaceOnUse" width="6" height="6">
           <rect width="6" height="6" fill={cor.fill} />
@@ -241,11 +234,9 @@ function ComponentPopover({ comp, previewX, previewY, onUpdate, onDelete, onClos
   const emendaPreview = local.tipo === "sarrafo_vertical"
     ? calcularEmendaSarrafo(local, X * 10, Y * 10)
     : null;
-
   const qty_auto = local.tipo === "sarrafo_vertical"
     ? calcularQuantidadeSarrafos(local, Y)
     : null;
-
   const ancoragemAtual = local.ancoragem || "topo";
 
   return (
@@ -254,7 +245,6 @@ function ComponentPopover({ comp, previewX, previewY, onUpdate, onDelete, onClos
       style={{ borderColor: cor.stroke, width: 280 }}
       onClick={e => e.stopPropagation()}
     >
-      {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2.5"
         style={{ backgroundColor: cor.fill, borderBottom: `1.5px solid ${cor.grain}` }}>
         <span className="flex-1 text-xs font-bold" style={{ color: cor.text }}>{COMP_LABELS[comp.tipo]}</span>
@@ -269,8 +259,6 @@ function ComponentPopover({ comp, previewX, previewY, onUpdate, onDelete, onClos
       </div>
 
       <div className="p-3 flex flex-col gap-3 max-h-[72vh] overflow-y-auto">
-
-        {/* ── COMPENSADO ── */}
         {comp.tipo === "compensado" && (
           <>
             <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-xl px-3 py-2">
@@ -285,22 +273,13 @@ function ComponentPopover({ comp, previewX, previewY, onUpdate, onDelete, onClos
           </>
         )}
 
-        {/* ── SARRAFO VERTICAL ── */}
         {comp.tipo === "sarrafo_vertical" && (
           <>
             {field("largura_mm", "Largura (cm)")}
             {field("espessura_mm", "Espessura (cm)")}
             {field("formula_comprimento", "Comprimento (cm)", "ex: [X] ou [X]-4")}
-
-            {/* Ancoragem */}
             <AncoragemSelect value={ancoragemAtual} onChange={v => upd("ancoragem", v)} />
-            {ancoragemAtual === "livre" && (
-              <div className="ml-0">
-                {field("distancia_topo", "Distância do Topo (cm)", "Posição a partir do topo do painel", "number")}
-              </div>
-            )}
-
-            {/* Folga construtiva */}
+            {ancoragemAtual === "livre" && field("distancia_topo", "Distância do Topo (cm)", null, "number")}
             <div className="bg-[#FFF7ED] border border-[#FED7AA] rounded-xl p-2.5">
               {field("folga", "Folga / Recuo Construtivo (cm)", "Ex: 0.5cm de recuo do sarrafo de acabamento", "number")}
               {parseFloat(local.folga) > 0 && (
@@ -309,20 +288,13 @@ function ComponentPopover({ comp, previewX, previewY, onUpdate, onDelete, onClos
                 </div>
               )}
             </div>
-
-            {/* Regra de emenda 244cm */}
             <div className="border border-[#DDD6FE] rounded-xl p-2.5 bg-[#FAFAFF]">
-              <Toggle
-                value={!!local.regra_emenda}
-                onChange={v => upd("regra_emenda", v)}
+              <Toggle value={!!local.regra_emenda} onChange={v => upd("regra_emenda", v)}
                 label="Regra de Emenda Industrial (limite 244cm)"
-                hint="Desconta 7cm do topo e modula em peças de 200cm + emenda"
-              />
+                hint="Desconta 7cm do topo e modula em peças de 200cm + emenda" />
               {local.regra_emenda && (
                 <div className="mt-2 bg-[#F5F3FF] border border-[#DDD6FE] rounded-lg px-2.5 py-2">
-                  <p className="text-[9px] font-semibold text-[#7C3AED] mb-1">
-                    [X]={X}cm → saldo={X - 7}cm após desconto de 7cm
-                  </p>
+                  <p className="text-[9px] font-semibold text-[#7C3AED] mb-1">[X]={X}cm → saldo={X - 7}cm</p>
                   <div className="flex flex-col gap-0.5">
                     {emendaPreview && emendaPreview.map((p, i) => (
                       <div key={i} className="flex items-center gap-1.5">
@@ -335,32 +307,22 @@ function ComponentPopover({ comp, previewX, previewY, onUpdate, onDelete, onClos
                 </div>
               )}
             </div>
-
-            {/* Regra de quantidade por [Y] */}
             <div className="border border-[#FDE68A] rounded-xl p-2.5 bg-[#FFFBEB]">
-              <Toggle
-                value={!!local.regra_qty_y}
-                onChange={v => upd("regra_qty_y", v)}
+              <Toggle value={!!local.regra_qty_y} onChange={v => upd("regra_qty_y", v)}
                 label="Modulação pela Largura [Y]"
-                hint="≤24cm → 1 sarrafo | >24cm → quantidade configurável"
-              />
+                hint="≤24cm → 1 sarrafo | >24cm → quantidade configurável" />
               {local.regra_qty_y && (
                 <div className="mt-2 flex flex-col gap-1.5">
-                  <div className="flex items-center gap-2 bg-white border border-[#FDE68A] rounded-lg px-2.5 py-1.5">
-                    <span className="text-[9px] text-[#92400E]">
-                      [Y]={Y}cm {Y <= 24 ? "≤ 24cm → 1 sarrafo" : `> 24cm → ${local.qty_extra || 2} sarrafos`}
-                    </span>
+                  <div className="text-[9px] text-[#92400E] bg-white border border-[#FDE68A] rounded-lg px-2.5 py-1.5">
+                    [Y]={Y}cm {Y <= 24 ? "≤ 24cm → 1 sarrafo" : `> 24cm → ${local.qty_extra || 2} sarrafos`}
                   </div>
                   {Y > 24 && (
-                    <div className="flex flex-col gap-0.5">
-                      <label className="text-[10px] font-semibold text-[#374151]">Qtd. intermediários (Y &gt; 24cm)</label>
-                      <input
-                        type="number" min={2}
-                        value={local.qty_extra ?? 2}
+                    <>
+                      <label className="text-[10px] font-semibold text-[#374151]">Qtd. intermediários</label>
+                      <input type="number" min={2} value={local.qty_extra ?? 2}
                         onChange={e => upd("qty_extra", e.target.value)}
-                        className="border border-[#FDE68A] rounded-lg px-2.5 py-1.5 text-xs text-[#1F1F24] focus:outline-none bg-white w-full"
-                      />
-                    </div>
+                        className="border border-[#FDE68A] rounded-lg px-2.5 py-1.5 text-xs focus:outline-none bg-white w-full" />
+                    </>
                   )}
                   <div className="text-[9px] text-[#92400E] font-semibold">
                     → {qty_auto} sarrafo{qty_auto !== 1 ? "s" : ""} calculado{qty_auto !== 1 ? "s" : ""}
@@ -371,37 +333,30 @@ function ComponentPopover({ comp, previewX, previewY, onUpdate, onDelete, onClos
           </>
         )}
 
-        {/* ── SARRAFO DE ACABAMENTO ── */}
         {comp.tipo === "sarrafo_acabamento" && (
           <>
             {field("largura_mm", "Largura (cm)")}
             {field("espessura_mm", "Espessura (cm)")}
             {field("formula_comprimento", "Comprimento (cm)", "ex: [Y] ou [Y]+10")}
             {field("quantidade", "Quantidade", null, "number")}
-
-            {/* Ancoragem */}
             <AncoragemSelect value={ancoragemAtual} onChange={v => upd("ancoragem", v)} />
-            {ancoragemAtual === "livre" && (
-              field("distancia_topo", "Distância do Topo (cm)", "Posição a partir do topo do painel", "number")
-            )}
-
-            {/* Folga construtiva */}
+            {ancoragemAtual === "livre" && field("distancia_topo", "Distância do Topo (cm)", null, "number")}
             <div className="bg-[#FFF7ED] border border-[#FED7AA] rounded-xl p-2.5">
-              {field("folga", "Folga / Recuo Construtivo (cm)", "Recuo da borda do painel", "number")}
+              {field("folga", "Folga / Recuo (cm)", "Recuo da borda do painel", "number")}
             </div>
           </>
         )}
 
-        {/* Var hint */}
         <div className="bg-[#F8F9FB] border border-[#E5E5E8] rounded-lg px-2.5 py-1.5 text-[10px] text-[#6B7280] font-mono">
-          <span className="font-bold text-[#3B82F6]">[X]</span>={X}cm &nbsp;·&nbsp; <span className="font-bold text-[#8B5CF6]">[Y]</span>={Y}cm
+          <span className="font-bold text-[#3B82F6]">[X]</span>={X}cm &nbsp;·&nbsp;
+          <span className="font-bold text-[#8B5CF6]">[Y]</span>={Y}cm
         </div>
       </div>
     </div>
   );
 }
 
-// ── Plano de Corte Modal ───────────────────────────────────────────────────────
+// ── Plano de Corte Modal (botão Testar Algoritmo) ─────────────────────────────
 function PlanoCorteModal({ painel, previewX, previewY, onClose, onSaveAndTest }) {
   const X = parseFloat(previewX) || 324;
   const Y = parseFloat(previewY) || 19;
@@ -428,41 +383,40 @@ function PlanoCorteModal({ painel, previewX, previewY, onClose, onSaveAndTest })
             <p className="text-sm font-bold text-[#0F0F0F]">Plano de Corte — {painel.nome}</p>
             <p className="text-[10px] text-[#9CA3AF]">[X]={X}cm · [Y]={Y}cm</p>
           </div>
-          <button onClick={onClose} className="w-6 h-6 rounded-lg flex items-center justify-center text-[#9CA3AF] hover:bg-[#F1F1F4] transition-colors">
+          <button onClick={onClose} className="w-6 h-6 rounded-lg flex items-center justify-center text-[#9CA3AF] hover:bg-[#F1F1F4]">
             <XIcon className="w-3.5 h-3.5" />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
-          {grupos.length === 0 ? (
-            <div className="text-center py-8 text-[#9CA3AF] text-sm">Adicione componentes ao painel primeiro.</div>
-          ) : grupos.map((grupo, gi) => (
-            <div key={gi}>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: grupo.cor }} />
-                <span className="text-[11px] font-bold text-[#374151] uppercase tracking-wide">{grupo.label}</span>
+          {grupos.length === 0
+            ? <div className="text-center py-8 text-[#9CA3AF] text-sm">Adicione componentes ao painel primeiro.</div>
+            : grupos.map((grupo, gi) => (
+              <div key={gi}>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: grupo.cor }} />
+                  <span className="text-[11px] font-bold text-[#374151] uppercase tracking-wide">{grupo.label}</span>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  {grupo.pecas.map((p, pi) => (
+                    <div key={pi} className="flex items-center gap-3 bg-[#F8F9FB] border border-[#F1F1F4] rounded-xl px-4 py-2.5">
+                      <span className="text-lg font-black text-[#374151] w-8 text-right flex-shrink-0">{p.quantidade}×</span>
+                      <span className="font-mono text-sm font-semibold text-[#1F1F24] flex-1">{p.descricao}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="flex flex-col gap-1.5">
-                {grupo.pecas.map((p, pi) => (
-                  <div key={pi} className="flex items-center gap-3 bg-[#F8F9FB] border border-[#F1F1F4] rounded-xl px-4 py-2.5">
-                    <span className="text-lg font-black text-[#374151] w-8 text-right flex-shrink-0">{p.quantidade}×</span>
-                    <span className="font-mono text-sm font-semibold text-[#1F1F24] flex-1">{p.descricao}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+            ))}
           {grupos.length > 0 && (
             <div className="bg-[#F0FDF4] border border-[#A7F3D0] rounded-xl px-4 py-3">
               <p className="text-[11px] font-semibold text-[#065F46] mb-1">Resumo para Carpinteiro:</p>
               <p className="text-xs text-[#047857] font-mono leading-relaxed">
-                {grupos.flatMap(g => g.pecas.map(p => `${p.quantidade}× ${p.descricao}`)).join(" · ")}
+                {grupos.flatMap(g => g.pecas.map(p => `${p.quantidade}× ${p.descricao}`)).join("  |  ")}
               </p>
             </div>
           )}
         </div>
         <div className="px-5 py-4 border-t border-[#F1F1F4] flex justify-end gap-2">
-          <button onClick={onClose}
-            className="h-9 px-4 rounded-xl border border-[#E5E5E8] text-sm font-medium text-[#4A4A52] hover:bg-[#F1F1F4] transition-colors">
+          <button onClick={onClose} className="h-9 px-4 rounded-xl border border-[#E5E5E8] text-sm font-medium text-[#4A4A52] hover:bg-[#F1F1F4]">
             Fechar
           </button>
           <button onClick={handleSave} disabled={saving || done}
@@ -470,7 +424,7 @@ function PlanoCorteModal({ painel, previewX, previewY, onClose, onSaveAndTest })
             style={{ backgroundColor: done ? "#22C55E" : "#8B5CF6" }}>
             {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Salvando...</>
               : done ? <><Check className="w-3.5 h-3.5" />Salvo!</>
-              : "Salvar Configuração"}
+              : "Salvar Modelo Construtivo"}
           </button>
         </div>
       </div>
@@ -478,7 +432,7 @@ function PlanoCorteModal({ painel, previewX, previewY, onClose, onSaveAndTest })
   );
 }
 
-// ── Toolbar buttons ────────────────────────────────────────────────────────────
+// ── Toolbar config ─────────────────────────────────────────────────────────────
 const BOTOES = [
   { tipo: "compensado",         short: "+ Compensado" },
   { tipo: "sarrafo_vertical",   short: "+ Sarrafo Vertical" },
@@ -496,6 +450,11 @@ export default function PainelCanvas({ painel, previewX, previewY, onUpdateCompo
   const [selectedId, setSelectedId] = useState(null);
   const [showPlano, setShowPlano] = useState(false);
 
+  // Drag state for sarrafo_acabamento
+  const dragRef = useRef(null);
+  const svgRef = useRef(null);
+  const [dragGhost, setDragGhost] = useState(null); // { py, ph, pw, px, cor }
+
   const measuredRef = useCallback(node => {
     if (!node) return;
     const ro = new ResizeObserver(([e]) => setSize({ w: e.contentRect.width, h: e.contentRect.height }));
@@ -505,7 +464,7 @@ export default function PainelCanvas({ painel, previewX, previewY, onUpdateCompo
   const X = parseFloat(previewX) || 324;
   const Y = parseFloat(previewY) || 19;
 
-  const { items, ox, oy, panelPxW, panelPxH } = useMemo(
+  const { items, ox, oy, panelPxW, panelPxH, scale } = useMemo(
     () => computeLayout(painel.componentes, X, Y, size.w, size.h),
     [painel.componentes, X, Y, size]
   );
@@ -516,6 +475,71 @@ export default function PainelCanvas({ painel, previewX, previewY, onUpdateCompo
   function addComp(tipo) {
     onAddComponente({ id: crypto.randomUUID(), tipo, ...DEFAULTS[tipo] });
     setSelectedId(null);
+  }
+
+  // ── Drag handlers ─────────────────────────────────────────────────────────
+  function handleDragStart(e, item) {
+    e.preventDefault();
+    e.stopPropagation();
+    const svgRect = svgRef.current?.getBoundingClientRect();
+    if (!svgRect) return;
+    dragRef.current = {
+      compId: item.comp.id,
+      startMouseY: e.clientY,
+      startPy: item.py,
+      svgRect,
+      ph: item.ph,
+      pw: item.pw,
+      px: item.px,
+      cor: getCor(item.tipo),
+    };
+    setDragGhost({ py: item.py, ph: item.ph, pw: item.pw, px: item.px, cor: getCor(item.tipo) });
+
+    function onMouseMove(ev) {
+      const d = dragRef.current;
+      if (!d) return;
+      const dy = ev.clientY - d.startMouseY;
+      const newPy = d.startPy + dy;
+      setDragGhost(g => ({ ...g, py: newPy }));
+    }
+
+    function onMouseUp(ev) {
+      const d = dragRef.current;
+      if (!d) return;
+      const dy = ev.clientY - d.startMouseY;
+      const newPy = d.startPy + dy;
+
+      // Determine ancoragem from drop position
+      const threshold = panelPxH * SNAP_THRESHOLD_RATIO;
+      const relY = newPy - oy; // pixels from top of panel
+      const centerY = relY + d.ph / 2;
+
+      let novaAncoragem, novaDistTopo;
+      if (centerY <= threshold) {
+        novaAncoragem = "topo";
+        novaDistTopo = 0;
+      } else if (centerY >= panelPxH - threshold) {
+        novaAncoragem = "base";
+        novaDistTopo = 0;
+      } else {
+        novaAncoragem = "livre";
+        novaDistTopo = Math.max(0, parseFloat(((relY) / scale).toFixed(1)));
+      }
+
+      // Update component
+      const comp = painel.componentes.find(c => c.id === d.compId);
+      if (comp) {
+        onUpdateComponente({ ...comp, ancoragem: novaAncoragem, distancia_topo: novaDistTopo });
+      }
+
+      dragRef.current = null;
+      setDragGhost(null);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    }
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
   }
 
   const dimColor = "#64748B";
@@ -535,7 +559,6 @@ export default function PainelCanvas({ painel, previewX, previewY, onUpdateCompo
             </button>
           );
         })}
-
         {painel.componentes.length > 0 && (
           <button onClick={() => setShowPlano(true)}
             className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold border border-[#A7F3D0] bg-[#ECFDF5] text-[#065F46] hover:shadow-sm active:scale-95 transition-all ml-auto">
@@ -543,7 +566,6 @@ export default function PainelCanvas({ painel, previewX, previewY, onUpdateCompo
             Testar Algoritmo
           </button>
         )}
-
         <span className={`text-[10px] text-[#9CA3AF] font-mono ${painel.componentes.length === 0 ? "ml-auto" : ""}`}>
           [X]={previewX}cm · [Y]={previewY}cm
         </span>
@@ -567,7 +589,7 @@ export default function PainelCanvas({ painel, previewX, previewY, onUpdateCompo
             </p>
           </div>
         ) : (
-          <svg width={size.w} height={size.h} style={{ display: "block" }}>
+          <svg ref={svgRef} width={size.w} height={size.h} style={{ display: "block" }}>
             <defs>
               <pattern id="woodBase" patternUnits="userSpaceOnUse" width="8" height="8">
                 <rect width="8" height="8" fill="#FEF9EE" />
@@ -579,15 +601,31 @@ export default function PainelCanvas({ painel, previewX, previewY, onUpdateCompo
             <rect x={ox} y={oy} width={panelPxW} height={panelPxH}
               fill="url(#woodBase)" stroke="#94A3B8" strokeWidth={1.5} strokeDasharray="6 3" rx={3} />
 
-            {/* Dim Y (width) */}
+            {/* Snap zones (visual hint) */}
+            {dragGhost && (
+              <>
+                <rect x={ox} y={oy} width={panelPxW} height={panelPxH * SNAP_THRESHOLD_RATIO}
+                  fill="#10B98118" rx={3} style={{ pointerEvents: "none" }} />
+                <rect x={ox} y={oy + panelPxH * (1 - SNAP_THRESHOLD_RATIO)} width={panelPxW} height={panelPxH * SNAP_THRESHOLD_RATIO}
+                  fill="#10B98118" rx={3} style={{ pointerEvents: "none" }} />
+                <text x={ox + panelPxW / 2} y={oy + panelPxH * SNAP_THRESHOLD_RATIO / 2 + 4}
+                  textAnchor="middle" fontSize={9} fill="#10B981" fontWeight={700} style={{ pointerEvents: "none" }}>
+                  ← TOPO
+                </text>
+                <text x={ox + panelPxW / 2} y={oy + panelPxH * (1 - SNAP_THRESHOLD_RATIO / 2) + 4}
+                  textAnchor="middle" fontSize={9} fill="#10B981" fontWeight={700} style={{ pointerEvents: "none" }}>
+                  ← BASE
+                </text>
+              </>
+            )}
+
+            {/* Dims */}
             <line x1={ox} y1={oy - 20} x2={ox + panelPxW} y2={oy - 20} stroke={dimColor} strokeWidth={1} />
             <line x1={ox} y1={oy - 26} x2={ox} y2={oy - 14} stroke={dimColor} strokeWidth={1} />
             <line x1={ox + panelPxW} y1={oy - 26} x2={ox + panelPxW} y2={oy - 14} stroke={dimColor} strokeWidth={1} />
             <text x={ox + panelPxW / 2} y={oy - 24} textAnchor="middle" fontSize={10} fontWeight={700} fill={dimColor} fontFamily="monospace">
               [Y] = {Y} cm
             </text>
-
-            {/* Dim X (height) */}
             <line x1={ox - 20} y1={oy} x2={ox - 20} y2={oy + panelPxH} stroke={dimColor} strokeWidth={1} />
             <line x1={ox - 26} y1={oy} x2={ox - 14} y2={oy} stroke={dimColor} strokeWidth={1} />
             <line x1={ox - 26} y1={oy + panelPxH} x2={ox - 14} y2={oy + panelPxH} stroke={dimColor} strokeWidth={1} />
@@ -603,10 +641,23 @@ export default function PainelCanvas({ painel, previewX, previewY, onUpdateCompo
                 px={item.px} py={item.py} pw={item.pw} ph={item.ph}
                 cor={getCor(item.tipo)}
                 selected={selectedId === item.id}
+                draggable={item.draggable}
                 onClick={e => { e.stopPropagation(); setSelectedId(prev => prev === item.id ? null : item.id); }}
+                onDragStart={e => handleDragStart(e, item)}
                 dimLabel={item.pw > 40 && item.ph > 14 ? `${Math.round(item.ph)}×${Math.round(item.pw)}` : null}
               />
             ))}
+
+            {/* Drag ghost */}
+            {dragGhost && (
+              <rect
+                x={dragGhost.px} y={dragGhost.py}
+                width={dragGhost.pw} height={dragGhost.ph}
+                fill={dragGhost.cor.fill} stroke={dragGhost.cor.stroke}
+                strokeWidth={2} strokeDasharray="4 2" rx={2} opacity={0.7}
+                style={{ pointerEvents: "none" }}
+              />
+            )}
           </svg>
         )}
 
@@ -637,14 +688,17 @@ export default function PainelCanvas({ painel, previewX, previewY, onUpdateCompo
           </div>
         )}
 
-        {painel.componentes.length > 0 && !selectedComp && (
+        {painel.componentes.length > 0 && !selectedComp && !dragGhost && (
           <div className="absolute bottom-3 right-3 bg-white/80 border border-[#E2E8F0] rounded-lg px-2.5 py-1.5">
-            <span className="text-[10px] text-[#94A3B8]">Clique em uma peça para editar</span>
+            <span className="text-[10px] text-[#94A3B8]">Clique para editar · Arraste acabamentos para reposicionar</span>
           </div>
         )}
       </div>
 
-      {/* Plano de corte modal */}
+      {/* Preview de corte em tempo real */}
+      <PlanoCortePreview painel={painel} X={X} Y={Y} />
+
+      {/* Modal detalhe */}
       {showPlano && (
         <PlanoCorteModal
           painel={painel}

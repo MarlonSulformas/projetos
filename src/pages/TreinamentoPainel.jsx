@@ -252,11 +252,20 @@ export default function TreinamentoPainel() {
   async function handleSave() {
     setSaving(true);
     try {
+      // Busca templates já salvos para upsert (evitar duplicatas)
+      const existentes = await base44.entities.TemplatePainel.list();
       for (const painel of paineis) {
-        await base44.entities.TemplatePainel.create({
+        if (painel.componentes.length === 0) continue;
+        const payload = {
           nome_painel: painel.nome,
           componentes_estrutura: JSON.stringify(painel.componentes),
-        });
+        };
+        const existente = existentes.find(t => t.nome_painel === painel.nome);
+        if (existente) {
+          await base44.entities.TemplatePainel.update(existente.id, payload);
+        } else {
+          await base44.entities.TemplatePainel.create(payload);
+        }
       }
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
