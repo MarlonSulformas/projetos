@@ -438,6 +438,7 @@ export default function TreinamentoPainel() {
               onDeleteComponente={id => setPaineis(prev => prev.map(p =>
                 p.id === selectedId ? { ...p, componentes: p.componentes.filter(c => c.id !== id) } : p
               ))}
+              onSave={handleSave}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-[#9CA3AF] text-sm">
