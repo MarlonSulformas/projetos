@@ -190,7 +190,7 @@ function ComponentPopover({ comp, previewX, previewY, onUpdate, onDelete, onClos
                 <span className="font-mono text-xs font-bold text-[#8B5CF6]">Altura = [X]</span>
               </div>
             </div>
-            {field("espessura_mm", "Espessura (mm)")}
+            {field("espessura_mm", "Espessura (cm)")}
             {field("quantidade", "Quantidade de chapas", null, "number")}
           </>
         )}
@@ -198,9 +198,9 @@ function ComponentPopover({ comp, previewX, previewY, onUpdate, onDelete, onClos
         {/* ── SARRAFO VERTICAL ── */}
         {comp.tipo === "sarrafo_vertical" && (
           <>
-            {field("largura_mm", "Largura (mm)")}
-            {field("espessura_mm", "Espessura (mm)")}
-            {field("formula_comprimento", "Comprimento", "ex: [X] ou [X]*10-40")}
+            {field("largura_mm", "Largura (cm)")}
+            {field("espessura_mm", "Espessura (cm)")}
+            {field("formula_comprimento", "Comprimento (cm)", "ex: [X] ou [X]-4")}
 
             {/* Regra de emenda 244cm */}
             <div className="border border-[#DDD6FE] rounded-xl p-2.5 bg-[#FAFAFF]">
@@ -240,7 +240,7 @@ function ComponentPopover({ comp, previewX, previewY, onUpdate, onDelete, onClos
                 <div className="mt-2 flex flex-col gap-1.5">
                   <div className="flex items-center gap-2 bg-white border border-[#FDE68A] rounded-lg px-2.5 py-1.5">
                     <span className="text-[9px] text-[#92400E]">
-                      [Y]={Y}mm {Y <= 24 ? "≤ 24cm → 1 sarrafo" : `> 24cm → ${local.qty_extra || 2} sarrafos`}
+                      [Y]={Y}cm {Y <= 24 ? "≤ 24cm → 1 sarrafo" : `> 24cm → ${local.qty_extra || 2} sarrafos`}
                     </span>
                   </div>
                   {Y > 24 && (
@@ -266,16 +266,16 @@ function ComponentPopover({ comp, previewX, previewY, onUpdate, onDelete, onClos
         {/* ── SARRAFO DE ACABAMENTO ── */}
         {comp.tipo === "sarrafo_acabamento" && (
           <>
-            {field("largura_mm", "Largura (mm)")}
-            {field("espessura_mm", "Espessura (mm)")}
-            {field("formula_comprimento", "Comprimento", "ex: [Y] ou [Y]+10")}
+            {field("largura_mm", "Largura (cm)")}
+            {field("espessura_mm", "Espessura (cm)")}
+            {field("formula_comprimento", "Comprimento (cm)", "ex: [Y] ou [Y]+10")}
             {field("quantidade", "Quantidade", null, "number")}
           </>
         )}
 
         {/* Var hint */}
         <div className="bg-[#F8F9FB] border border-[#E5E5E8] rounded-lg px-2.5 py-1.5 text-[10px] text-[#6B7280] font-mono">
-          <span className="font-bold text-[#3B82F6]">[X]</span>={X}mm &nbsp;·&nbsp; <span className="font-bold text-[#8B5CF6]">[Y]</span>={Y}mm
+          <span className="font-bold text-[#3B82F6]">[X]</span>={X}cm &nbsp;·&nbsp; <span className="font-bold text-[#8B5CF6]">[Y]</span>={Y}cm
         </div>
       </div>
     </div>
@@ -310,7 +310,7 @@ function PlanoCorteModal({ painel, previewX, previewY, onClose, onSaveAndTest })
           </div>
           <div className="flex-1">
             <p className="text-sm font-bold text-[#0F0F0F]">Plano de Corte — {painel.nome}</p>
-            <p className="text-[10px] text-[#9CA3AF]">[X]={X}mm · [Y]={Y}mm</p>
+            <p className="text-[10px] text-[#9CA3AF]">[X]={X}cm · [Y]={Y}cm</p>
           </div>
           <button onClick={onClose} className="w-6 h-6 rounded-lg flex items-center justify-center text-[#9CA3AF] hover:bg-[#F1F1F4] transition-colors">
             <XIcon className="w-3.5 h-3.5" />
@@ -443,7 +443,7 @@ export default function PainelCanvas({ painel, previewX, previewY, onUpdateCompo
         )}
 
         <span className={`text-[10px] text-[#9CA3AF] font-mono ${painel.componentes.length === 0 ? "ml-auto" : ""}`}>
-          [X]={previewX}mm · [Y]={previewY}mm
+          [X]={previewX}cm · [Y]={previewY}cm
         </span>
       </div>
 

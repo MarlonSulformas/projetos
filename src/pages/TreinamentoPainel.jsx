@@ -361,7 +361,7 @@ export default function TreinamentoPainel() {
                   <p className="text-[10px] font-semibold text-[#6B6B72] uppercase tracking-wider mb-2">Variáveis Dinâmicas</p>
                   <div className="grid grid-cols-2 gap-2">
                     <div className="flex flex-col gap-1 min-w-0">
-                      <span className="text-[10px] text-[#6B6B72] truncate">[X] = Altura Total</span>
+                      <span className="text-[10px] text-[#6B6B72] truncate">[X] = Altura (cm)</span>
                       <div className="flex items-center border border-[#BFDBFE] rounded-lg overflow-hidden bg-white w-full">
                         <span className="px-1.5 text-[10px] font-mono font-bold text-[#3B82F6] bg-[#EFF6FF] border-r border-[#BFDBFE] py-1.5 flex-shrink-0">[X]</span>
                         <input type="number" value={previewX} onChange={e => setPreviewX(e.target.value)}
@@ -369,7 +369,7 @@ export default function TreinamentoPainel() {
                       </div>
                     </div>
                     <div className="flex flex-col gap-1 min-w-0">
-                      <span className="text-[10px] text-[#6B6B72] truncate">[Y] = Largura Total</span>
+                      <span className="text-[10px] text-[#6B6B72] truncate">[Y] = Largura (cm)</span>
                       <div className="flex items-center border border-[#DDD6FE] rounded-lg overflow-hidden bg-white w-full">
                         <span className="px-1.5 text-[10px] font-mono font-bold text-[#8B5CF6] bg-[#F5F3FF] border-r border-[#DDD6FE] py-1.5 flex-shrink-0">[Y]</span>
                         <input type="number" value={previewY} onChange={e => setPreviewY(e.target.value)}
