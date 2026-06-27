@@ -71,14 +71,16 @@ export default function BlueprintCanvas({
     let cancelled = false;
 
     async function render() {
-      // Wait until container has real size (up to 2s)
+      // Wait until container has a real painted size (use getBoundingClientRect — reliable in flex/absolute layouts)
       let containerW = 0, containerH = 0;
-      for (let i = 0; i < 40; i++) {
+      for (let i = 0; i < 60; i++) {
         const el = containerRef.current;
-        if (!el) { await new Promise(r => setTimeout(r, 50)); continue; }
-        containerW = el.clientWidth;
-        containerH = el.clientHeight;
-        if (containerW > 0 && containerH > 0) break;
+        if (el) {
+          const r = el.getBoundingClientRect();
+          containerW = r.width;
+          containerH = r.height;
+          if (containerW > 10 && containerH > 10) break;
+        }
         await new Promise(r => setTimeout(r, 50));
       }
       if (!containerW || !containerH || cancelled) return;
@@ -121,15 +123,18 @@ export default function BlueprintCanvas({
 
   // Re-render when container resizes
   useEffect(() => {
-    if (!containerRef.current) return;
+    const el = containerRef.current;
+    if (!el) return;
     const obs = new ResizeObserver((entries) => {
       const entry = entries[0];
-      if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0 && pdfUrlRef.current) {
+      if (entry && entry.contentRect.width > 10 && entry.contentRect.height > 10 && pdfUrlRef.current) {
         setRenderTick(t => t + 1);
       }
     });
-    obs.observe(containerRef.current);
-    return () => obs.disconnect();
+    obs.observe(el);
+    // Trigger an initial render tick after a short delay to catch the first paint
+    const t = setTimeout(() => { if (pdfUrlRef.current) setRenderTick(t => t + 1); }, 200);
+    return () => { obs.disconnect(); clearTimeout(t); };
   }, []);
 
   // ── Coordinate helpers ─────────────────────────────────────────
