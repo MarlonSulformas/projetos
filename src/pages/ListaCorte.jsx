@@ -343,16 +343,14 @@ Se não conseguir extrair as dimensões, responda: {"erro": "descrição do prob
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="px-6 pt-5 pb-3 flex-shrink-0 flex items-center justify-between"
+        className="px-6 pt-5 pb-3 flex-shrink-0 flex items-center justify-between border-b border-[#F1F1F4]"
       >
         <div className="flex items-center gap-3">
           <div className="w-6 h-6 rounded-lg bg-[#22C55E] flex items-center justify-center flex-shrink-0">
             <span className="text-[11px] font-bold text-white">3</span>
           </div>
           <div>
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-lg font-semibold text-[#0F0F0F]">Lista de Corte</h1>
-            </div>
+            <h1 className="text-lg font-semibold text-[#0F0F0F]">Lista de Corte</h1>
             <p className="text-xs text-[#6B6B72] mt-0.5">
               Selecione o produto treinado, faça upload do PDF e o Gemini gera a lista automaticamente.
             </p>
@@ -374,105 +372,145 @@ Se não conseguir extrair as dimensões, responda: {"erro": "descrição do prob
         </div>
       </motion.div>
 
-      {/* Body */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 flex flex-col gap-4">
+      {/* Body — 2 colunas */}
+      <div className="flex flex-1 min-h-0">
 
-        {/* Seletor de produto */}
-        <ProdutoSelector
-          produtos={produtos}
-          projetistas={projetistas}
-          selectedProduto={selectedProduto}
-          onSelect={p => { setSelectedProduto(p); setElementos([]); setErro(null); setPdfNome(null); }}
-          agente={agente}
-        />
+        {/* Sidebar esquerda — seletor fixo */}
+        <div className="w-72 flex-shrink-0 border-r border-[#F1F1F4] bg-[#FAFAFA] p-4 flex flex-col gap-4 overflow-y-auto">
+          <ProdutoSelector
+            produtos={produtos}
+            projetistas={projetistas}
+            selectedProduto={selectedProduto}
+            onSelect={p => { setSelectedProduto(p); setElementos([]); setErro(null); setPdfNome(null); }}
+            agente={agente}
+          />
 
-        {/* Upload — só aparece se produto selecionado */}
-        {selectedProduto && agente && !processando && elementos.length === 0 && (
-          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-            {agente.status_treinamento !== "treinado" && (
-              <div className="flex items-center gap-3 bg-[#FFFBEB] border border-[#FDE68A] rounded-2xl p-4 mb-2">
-                <AlertCircle className="w-4 h-4 text-[#F59E0B] flex-shrink-0" />
-                <p className="text-xs text-[#92400E]">
-                  O agente ainda não está totalmente treinado. Os resultados podem ser imprecisos. <Link to="/treinamento-ia" className="font-semibold underline">Adicione mais exemplos.</Link>
-                </p>
+          {/* Resumo quando há resultados */}
+          {elementos.length > 0 && !processando && (
+            <div className="bg-white border border-[#E5E5E8] rounded-2xl p-4 flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <Package className="w-4 h-4 text-[#22C55E]" />
+                <span className="text-xs font-semibold text-[#0F0F0F]">Resultado</span>
               </div>
-            )}
-            <Dropzone onFile={processarPDF} />
-          </motion.div>
-        )}
-
-        {!selectedProduto && (
-          <div className="flex flex-col items-center justify-center py-12 text-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-[#F1F1F4] flex items-center justify-center">
-              <Bot className="w-6 h-6 text-[#D1D5DB]" />
-            </div>
-            <p className="text-sm font-semibold text-[#6B7280]">Selecione um produto acima para continuar</p>
-          </div>
-        )}
-
-        {/* Progresso */}
-        {processando && (
-          <div className="bg-white border border-[#E5E5E8] rounded-2xl shadow-sm p-6 flex flex-col items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#EDE9FE] to-[#DBEAFE] flex items-center justify-center">
-              <Loader2 className="w-6 h-6 text-[#8B5CF6] animate-spin" />
-            </div>
-            <div className="text-center">
-              <p className="text-sm font-semibold text-[#1F1F24]">{progresso.msg}</p>
-              {progresso.total > 0 && (
-                <p className="text-xs text-[#9CA3AF] mt-1">{progresso.atual} / {progresso.total} páginas</p>
-              )}
-            </div>
-            {progresso.total > 0 && (
-              <div className="w-full max-w-sm h-2 bg-[#F1F1F4] rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-full transition-all duration-300"
-                  style={{ width: `${(progresso.atual / progresso.total) * 100}%` }}
-                />
-              </div>
-            )}
-            <p className="text-[10px] text-[#9CA3AF]">O Gemini está analisando cada prancha com base no treinamento salvo...</p>
-          </div>
-        )}
-
-        {/* Erro */}
-        {erro && (
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
-            <p className="text-sm font-semibold text-red-700">Erro no processamento</p>
-            <p className="text-xs text-red-500 mt-1">{erro}</p>
-            <button onClick={() => { setErro(null); setElementos([]); setPdfNome(null); }}
-              className="mt-3 text-xs font-medium text-red-600 hover:text-red-800 underline">
-              Tentar novamente
-            </button>
-          </div>
-        )}
-
-        {/* Resultados */}
-        {elementos.length > 0 && !processando && (
-          <>
-            <div className="flex items-center gap-4 bg-white border border-[#E5E5E8] rounded-2xl shadow-sm p-4">
-              <div className="w-10 h-10 rounded-xl bg-[#ECFDF5] flex items-center justify-center flex-shrink-0">
-                <Package className="w-5 h-5 text-[#22C55E]" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-[#0F0F0F]">
-                  Lista gerada — <span className="text-[#22C55E]">{pdfNome}</span>
-                </p>
-                <p className="text-xs text-[#6B6B72] mt-0.5">
-                  {elementos.length} elementos · {totalItens} itens de corte · Produto: {selectedProduto?.nome}
-                </p>
+              <div className="flex flex-col gap-1.5 text-[11px] text-[#6B6B72]">
+                <div className="flex justify-between">
+                  <span>Elementos</span>
+                  <span className="font-bold text-[#1F1F24]">{elementos.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Itens de corte</span>
+                  <span className="font-bold text-[#1F1F24]">{totalItens}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Arquivo</span>
+                  <span className="font-bold text-[#1F1F24] truncate max-w-[100px]" title={pdfNome}>{pdfNome}</span>
+                </div>
               </div>
               <button
                 onClick={() => { setElementos([]); setPdfNome(null); setErro(null); }}
-                className="h-8 px-3 rounded-lg text-xs font-medium border border-[#E5E5E8] text-[#6B6B72] hover:bg-[#F1F1F4] transition-colors"
+                className="mt-1 w-full h-8 rounded-xl text-xs font-medium border border-[#E5E5E8] text-[#6B6B72] hover:bg-[#F1F1F4] transition-colors"
               >
                 Novo arquivo
               </button>
             </div>
-            {elementos.map((el, i) => (
-              <TabelaElemento key={i} elemento={el} index={i} />
-            ))}
-          </>
-        )}
+          )}
+
+          {/* Índice de elementos */}
+          {elementos.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <p className="text-[10px] font-semibold text-[#6B6B72] uppercase tracking-wider mb-1">Elementos</p>
+              {elementos.map((el, i) => (
+                <button
+                  key={i}
+                  onClick={() => document.getElementById(`elemento-${i}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[#F1F1F4] transition-colors text-left"
+                >
+                  <div className="w-5 h-5 rounded-md bg-[#1D4ED8] flex items-center justify-center flex-shrink-0">
+                    <span className="text-[9px] font-bold text-white">{i + 1}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-semibold text-[#1F1F24] truncate">{el.nome}</p>
+                    <p className="text-[9px] text-[#9CA3AF]">{el.linhas?.length || 0} itens · Pág. {el.pagina}</p>
+                  </div>
+                  {el.aviso && <AlertCircle className="w-3 h-3 text-[#F59E0B] flex-shrink-0" />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Área principal com scroll */}
+        <div className="flex-1 min-w-0 overflow-y-auto p-5 flex flex-col gap-4 bg-[#F8F9FB]">
+
+          {/* Upload */}
+          {selectedProduto && agente && !processando && elementos.length === 0 && (
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-3">
+              {agente.status_treinamento !== "treinado" && (
+                <div className="flex items-center gap-3 bg-[#FFFBEB] border border-[#FDE68A] rounded-2xl p-4">
+                  <AlertCircle className="w-4 h-4 text-[#F59E0B] flex-shrink-0" />
+                  <p className="text-xs text-[#92400E]">
+                    O agente ainda não está totalmente treinado. Os resultados podem ser imprecisos.{" "}
+                    <Link to="/treinamento-ia" className="font-semibold underline">Adicione mais exemplos.</Link>
+                  </p>
+                </div>
+              )}
+              <Dropzone onFile={processarPDF} />
+            </motion.div>
+          )}
+
+          {!selectedProduto && (
+            <div className="flex flex-col items-center justify-center h-full text-center gap-3">
+              <div className="w-14 h-14 rounded-2xl bg-[#F1F1F4] flex items-center justify-center">
+                <Bot className="w-7 h-7 text-[#D1D5DB]" />
+              </div>
+              <p className="text-sm font-semibold text-[#6B7280]">Selecione o projetista e produto à esquerda</p>
+              <p className="text-xs text-[#9CA3AF]">Depois faça o upload do PDF para gerar a lista de corte</p>
+            </div>
+          )}
+
+          {/* Progresso */}
+          {processando && (
+            <div className="bg-white border border-[#E5E5E8] rounded-2xl shadow-sm p-8 flex flex-col items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#EDE9FE] to-[#DBEAFE] flex items-center justify-center">
+                <Loader2 className="w-6 h-6 text-[#8B5CF6] animate-spin" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-semibold text-[#1F1F24]">{progresso.msg}</p>
+                {progresso.total > 0 && (
+                  <p className="text-xs text-[#9CA3AF] mt-1">{progresso.atual} / {progresso.total} páginas</p>
+                )}
+              </div>
+              {progresso.total > 0 && (
+                <div className="w-full max-w-sm h-2 bg-[#F1F1F4] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-full transition-all duration-300"
+                    style={{ width: `${(progresso.atual / progresso.total) * 100}%` }}
+                  />
+                </div>
+              )}
+              <p className="text-[10px] text-[#9CA3AF]">O Gemini está analisando cada prancha com base no treinamento salvo...</p>
+            </div>
+          )}
+
+          {/* Erro */}
+          {erro && (
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
+              <p className="text-sm font-semibold text-red-700">Erro no processamento</p>
+              <p className="text-xs text-red-500 mt-1">{erro}</p>
+              <button onClick={() => { setErro(null); setElementos([]); setPdfNome(null); }}
+                className="mt-3 text-xs font-medium text-red-600 hover:text-red-800 underline">
+                Tentar novamente
+              </button>
+            </div>
+          )}
+
+          {/* Resultados */}
+          {elementos.length > 0 && !processando && elementos.map((el, i) => (
+            <div key={i} id={`elemento-${i}`}>
+              <TabelaElemento elemento={el} index={i} />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
