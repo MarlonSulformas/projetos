@@ -18,26 +18,30 @@ export default function Sidebar() {
   const sidebarContent = (isMobile = false) => (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className={`flex items-center gap-3 px-5 pt-6 pb-8 ${!expanded && !isMobile ? "justify-center px-3" : ""}`}>
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center flex-shrink-0">
-          <Box className="w-5 h-5 text-white" strokeWidth={2} />
-        </div>
+      <div className={`flex items-center justify-center px-4 pt-5 pb-6 ${!expanded && !isMobile ? "px-3" : ""}`}>
         <AnimatePresence>
-          {(expanded || isMobile) && (
-            <motion.div
-              initial={{ opacity: 0, width: 0 }}
-              animate={{ opacity: 1, width: "auto" }}
-              exit={{ opacity: 0, width: 0 }}
+          {(expanded || isMobile) ? (
+            <motion.img
+              key="logo-full"
+              src="https://media.base44.com/images/public/6a3d59dcec116a0c5a34816d/3bf0a37f1_LogoSulformasjpg.jpeg"
+              alt="Sulformas"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="overflow-hidden whitespace-nowrap"
-            >
-              <span className="text-sm font-semibold text-[#0F0F0F] tracking-tight leading-none block">
-                Engenharia
-              </span>
-              <span className="text-[11px] font-medium text-[#6B6B72] tracking-wide uppercase leading-none mt-0.5 block">
-                Estrutural
-              </span>
-            </motion.div>
+              className="h-14 w-auto object-contain"
+            />
+          ) : (
+            <motion.img
+              key="logo-icon"
+              src="https://media.base44.com/images/public/6a3d59dcec116a0c5a34816d/3bf0a37f1_LogoSulformasjpg.jpeg"
+              alt="Sulformas"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="h-9 w-9 object-contain rounded-lg"
+            />
           )}
         </AnimatePresence>
       </div>
