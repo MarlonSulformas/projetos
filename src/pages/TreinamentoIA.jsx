@@ -506,6 +506,18 @@ Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, con
                     value={input}
                     onChange={e => setInput(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleEnviar(); } }}
+                    onPaste={e => {
+                      const items = e.clipboardData?.items;
+                      if (!items) return;
+                      for (const item of items) {
+                        if (item.type.startsWith("image/")) {
+                          e.preventDefault();
+                          const file = item.getAsFile();
+                          if (file) handleAnexarArquivo(file);
+                          break;
+                        }
+                      }
+                    }}
                     placeholder="Escreva sua mensagem... (Ex: 'A altura correta é 324cm, não 320cm')"
                     rows={1}
                     className="flex-1 border border-[#E5E5E8] rounded-xl px-3.5 py-2.5 text-sm text-[#1F1F24] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6] resize-none bg-white"
