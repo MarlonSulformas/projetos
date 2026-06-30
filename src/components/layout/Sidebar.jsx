@@ -1,14 +1,13 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { LayoutDashboard, Users, Settings, Building2, Menu, X, Box, FileText, Bot } from "lucide-react";
+import { LayoutDashboard, Users, Menu, X, Box, FileText, Bot } from "lucide-react";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Painel Principal", path: "/" },
   { icon: Users, label: "Projetistas e Produtos", path: "/projetistas" },
-  { icon: Settings, label: "Configuração (Passo 1)", path: "/configuracao" },
-  { icon: Bot, label: "Treinamento IA (Passo 2)", path: "/treinamento-ia" },
-  { icon: FileText, label: "Lista de Corte (Passo 3)", path: "/lista-corte" },
+  { icon: Bot, label: "Treinamento IA (Passo 1)", path: "/treinamento-ia" },
+  { icon: FileText, label: "Lista de Corte (Passo 2)", path: "/lista-corte" },
 ];
 
 export default function Sidebar() {
