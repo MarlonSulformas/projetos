@@ -235,13 +235,24 @@ export default function ListaCorte() {
       setProgresso({ atual: 0, total: 0, msg: "Convertendo PDF em imagens..." });
       const imagens = await pdfToImagens(file);
 
-      setProgresso({ atual: 0, total: imagens.length, msg: `Analisando ${imagens.length} páginas com IA...` });
+      setProgresso({ atual: 0, total: imagens.length, msg: `Fazendo upload das imagens...` });
+
+      // Upload de todas as imagens para obter URLs reais
+      const imagensComUrl = await Promise.all(imagens.map(async (img) => {
+        const res = await fetch(img.base64);
+        const blob = await res.blob();
+        const imageFile = new File([blob], `pagina_${img.pagina}.jpg`, { type: "image/jpeg" });
+        const { file_url } = await base44.integrations.Core.UploadFile({ file: imageFile });
+        return { ...img, file_url };
+      }));
+
+      setProgresso({ atual: 0, total: imagensComUrl.length, msg: `Analisando ${imagensComUrl.length} páginas com IA...` });
 
       const resultados = [];
 
-      for (let i = 0; i < imagens.length; i++) {
-        const img = imagens[i];
-        setProgresso({ atual: i + 1, total: imagens.length, msg: `Processando página ${i + 1} de ${imagens.length}...` });
+      for (let i = 0; i < imagensComUrl.length; i++) {
+        const img = imagensComUrl[i];
+        setProgresso({ atual: i + 1, total: imagensComUrl.length, msg: `Processando página ${i + 1} de ${imagensComUrl.length}...` });
 
         const prompt = `Você é um engenheiro especializado em pré-moldados. Analise esta prancha técnica estrutural.
 
@@ -271,7 +282,7 @@ Se não conseguir extrair as dimensões, responda: {"erro": "descrição do prob
           const response = await base44.integrations.Core.InvokeLLM({
             prompt,
             model: "gemini_3_flash",
-            file_urls: [img.base64],
+            file_urls: [img.file_url],
             response_json_schema: {
               type: "object",
               properties: {
