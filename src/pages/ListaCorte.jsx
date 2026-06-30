@@ -226,8 +226,19 @@ export default function ListaCorte() {
     setPdfNome(file.name);
 
     try {
-      // Usar base de conhecimento consolidada (persistente, independente do histórico de chat)
-      const resumoTreinamento = agente.base_conhecimento || "";
+      // Usar base de conhecimento + histórico completo para máxima precisão
+      const baseConhecimento = agente.base_conhecimento || "";
+      let historicoTexto = "";
+      if (agente.historico_conversa) {
+        try {
+          const historico = await fetch(agente.historico_conversa).then(r => r.json()).catch(() => []);
+          historicoTexto = historico
+            .filter(m => m.content && m.content.length > 20)
+            .map(m => `${m.role === "user" ? "Engenheiro" : "IA"}: ${m.content}`)
+            .join("\n");
+        } catch (e) { /* ignora se falhar */ }
+      }
+      const resumoTreinamento = [baseConhecimento, historicoTexto].filter(Boolean).join("\n\n---HISTÓRICO DE TREINAMENTO---\n\n");
 
       setProgresso({ atual: 0, total: 0, msg: "Convertendo PDF em imagens..." });
       const imagens = await pdfToImagens(file);
