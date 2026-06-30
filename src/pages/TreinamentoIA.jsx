@@ -5,6 +5,7 @@ import { ArrowLeft, Upload, Send, Bot, User, Trash2, CheckCircle, BookOpen, File
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
 import { db } from "@/lib/supabaseClient";
+import { salvarHistorico, carregarHistorico } from "@/lib/historicoStorage";
 import * as pdfjsLib from "pdfjs-dist";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -159,17 +160,15 @@ export default function TreinamentoIA() {
           timestamp: Date.now(),
         };
         const historicoInicial = [boasVindas];
+        const urlHistorico = await salvarHistorico(historicoInicial);
         await base44.entities.AgenteIA.update(ag.id, {
-          historico_conversa: JSON.stringify(historicoInicial),
+          historico_conversa: urlHistorico,
         });
-        ag.historico_conversa = JSON.stringify(historicoInicial);
+        ag.historico_conversa = urlHistorico;
       }
       setAgente(ag);
-      try {
-        setMensagens(JSON.parse(ag.historico_conversa || "[]"));
-      } catch {
-        setMensagens([]);
-      }
+      const msgs = await carregarHistorico(ag.historico_conversa);
+      setMensagens(msgs);
       setLoadingAgente(false);
     }).catch(e => {
       console.warn("Erro ao carregar agente:", e);
@@ -259,12 +258,13 @@ Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, con
       const historicoAtualizado = [...novasMensagens, msgIA];
       setMensagens(historicoAtualizado);
 
-      // Salvar histórico e atualizar status
+      // Salvar histórico como arquivo e atualizar status
       const totalExemplos = (agente.total_exemplos || 0) + (anexosAtuais.length > 0 ? 1 : 0);
       const novoStatus = totalExemplos === 0 ? "iniciando" : totalExemplos < 3 ? "em_treinamento" : "treinado";
+      const urlHistorico = await salvarHistorico(historicoAtualizado);
 
       await base44.entities.AgenteIA.update(agente.id, {
-        historico_conversa: JSON.stringify(historicoAtualizado),
+        historico_conversa: urlHistorico,
         total_exemplos: totalExemplos,
         status_treinamento: novoStatus,
       });
@@ -289,8 +289,9 @@ Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, con
       content: `Histórico apagado. Vamos começar do zero!\n\nEnvie um PDF de exemplo para treinar o agente do produto **${selectedProduto?.nome}**.`,
       timestamp: Date.now(),
     }];
+    const urlHistorico = await salvarHistorico(boasVindas);
     await base44.entities.AgenteIA.update(agente.id, {
-      historico_conversa: JSON.stringify(boasVindas),
+      historico_conversa: urlHistorico,
       total_exemplos: 0,
       status_treinamento: "iniciando",
     });

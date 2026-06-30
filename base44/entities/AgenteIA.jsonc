@@ -13,7 +13,7 @@
     },
     "historico_conversa": {
       "type": "string",
-      "description": "JSON array de mensagens [{role, content, timestamp}]"
+      "description": "URL do arquivo JSON com o hist\u00f3rico de mensagens (fallback: JSON inline para hist\u00f3ricos pequenos)"
     },
     "status_treinamento": {
       "type": "string",

@@ -5,6 +5,7 @@ import { ArrowLeft, Upload, FileText, Loader2, ChevronDown, ChevronUp, Package, 
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
 import { db } from "@/lib/supabaseClient";
+import { carregarHistorico } from "@/lib/historicoStorage";
 import * as pdfjsLib from "pdfjs-dist";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -225,8 +226,8 @@ export default function ListaCorte() {
     setPdfNome(file.name);
 
     try {
-      // Carregar histórico do agente treinado
-      const historico = JSON.parse(agente.historico_conversa || "[]");
+      // Carregar histórico do agente treinado (pode ser URL ou JSON inline)
+      const historico = await carregarHistorico(agente.historico_conversa);
       const resumoTreinamento = historico
         .slice(-20)
         .map(m => `${m.role === "user" ? "Engenheiro" : "IA"}: ${m.content}`)
