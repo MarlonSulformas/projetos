@@ -169,7 +169,12 @@ export default function TreinamentoIA() {
     if (!file || file.type !== "application/pdf") return;
     try {
       const { base64, totalPages } = await pdfPageToBase64(file);
-      setPdfAnexo({ file, nome: file.name, base64, totalPages });
+      // Converter base64 para Blob e fazer upload para obter URL real
+      const res = await fetch(base64);
+      const blob = await res.blob();
+      const imageFile = new File([blob], file.name.replace(".pdf", ".jpg"), { type: "image/jpeg" });
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: imageFile });
+      setPdfAnexo({ file, nome: file.name, fileUrl: file_url, totalPages });
     } catch (e) {
       console.warn("Erro ao processar PDF:", e);
     }
@@ -216,7 +221,7 @@ Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, con
       const response = await base44.integrations.Core.InvokeLLM({
         prompt: promptBase,
         model: "gemini_3_flash",
-        file_urls: pdfAtual?.base64 ? [pdfAtual.base64] : undefined,
+        file_urls: pdfAtual?.fileUrl ? [pdfAtual.fileUrl] : undefined,
       });
 
       const msgIA = {
