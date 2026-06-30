@@ -1,0 +1,35 @@
+{
+  "name": "AgenteIA",
+  "type": "object",
+  "properties": {
+    "produto_id": {
+      "type": "string"
+    },
+    "projetista_id": {
+      "type": "string"
+    },
+    "nome_produto": {
+      "type": "string"
+    },
+    "historico_conversa": {
+      "type": "string",
+      "description": "JSON array de mensagens [{role, content, timestamp}]"
+    },
+    "status_treinamento": {
+      "type": "string",
+      "enum": [
+        "iniciando",
+        "em_treinamento",
+        "treinado"
+      ],
+      "default": "iniciando"
+    },
+    "total_exemplos": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "nome_produto"
+  ]
+}
