@@ -15,6 +15,10 @@
       "type": "string",
       "description": "URL do arquivo JSON com o hist\u00f3rico de mensagens (fallback: JSON inline para hist\u00f3ricos pequenos)"
     },
+    "base_conhecimento": {
+      "type": "string",
+      "description": "Conhecimento t\u00e9cnico consolidado extra\u00eddo das conversas de treinamento. Persistente e independente do hist\u00f3rico de chat."
+    },
     "status_treinamento": {
       "type": "string",
       "enum": [

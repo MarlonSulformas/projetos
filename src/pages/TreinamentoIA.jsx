@@ -203,6 +203,40 @@ export default function TreinamentoIA() {
     }
   }
 
+  // Extrai e consolida o conhecimento técnico do histórico via IA
+  async function consolidarConhecimento(historicoAtualizado, baseAtual) {
+    const historicoTexto = historicoAtualizado
+      .filter(m => m.role === "assistant")
+      .map(m => m.content)
+      .join("\n\n---\n\n");
+
+    const prompt = `Você é um sistema de extração de conhecimento técnico.
+
+BASE DE CONHECIMENTO ATUAL (já consolidada anteriormente):
+${baseAtual || "Nenhuma base ainda."}
+
+NOVAS RESPOSTAS DA IA NO CHAT:
+${historicoTexto}
+
+TAREFA: Analise tudo acima e gere um RESUMO TÉCNICO CONSOLIDADO e ATUALIZADO com todas as regras, dimensões, fórmulas e aprendizados sobre este produto estrutural.
+
+O resumo deve:
+- Ser objetivo e técnico
+- Incluir todas as regras de dimensionamento aprendidas
+- Incluir fórmulas e relações entre medidas
+- Incluir observações sobre tipos de sarrafos, compensados, seções
+- Ser completo o suficiente para que a IA gere listas de corte corretas sem ver o histórico de chat
+
+Responda APENAS com o resumo técnico, sem introdução.`;
+
+    const resposta = await base44.integrations.Core.InvokeLLM({
+      prompt,
+      model: "gemini_3_flash",
+    });
+
+    return typeof resposta === "string" ? resposta : JSON.stringify(resposta);
+  }
+
   async function handleEnviar() {
     if (!input.trim() && anexos.length === 0) return;
     if (!agente) return;
@@ -231,24 +265,28 @@ export default function TreinamentoIA() {
     }
 
     try {
-      // Montar histórico para contexto do Gemini
-      const historicoFormatado = novasMensagens.slice(-10).map(m => ({
+      // Montar contexto: base de conhecimento salva + últimas 5 mensagens do chat
+      const baseConhecimento = agente.base_conhecimento || "";
+      const historicoRecente = novasMensagens.slice(-6, -1).map(m => ({
         role: m.role === "user" ? "Engenheiro" : "Assistente IA",
         texto: m.content,
       }));
 
-      const promptBase = `Você é um assistente especializado em engenharia estrutural de pré-moldados, treinado para analisar pranchas técnicas de pilares e painéis e extrair suas dimensões.
+      const promptBase = `Você é um assistente especializado em engenharia estrutural de pré-moldados.
 
 PRODUTO: ${selectedProduto?.nome}
 
-HISTÓRICO DA CONVERSA (para contexto de aprendizado):
-${historicoFormatado.slice(0, -1).map(h => `${h.role}: ${h.texto}`).join("\n")}
+${baseConhecimento ? `BASE DE CONHECIMENTO TÉCNICO CONSOLIDADA (regras aprendidas anteriormente — use sempre):
+${baseConhecimento}
+
+` : ""}HISTÓRICO RECENTE DA CONVERSA:
+${historicoRecente.map(h => `${h.role}: ${h.texto}`).join("\n")}
 
 NOVA MENSAGEM DO ENGENHEIRO: ${msgUsuario.content}
 
 ${anexosAtuais.length > 0 ? "O engenheiro enviou imagem(ns) da prancha técnica para análise. Analise as imagens e extraia as dimensões principais (altura X e largura Y em cm) do elemento estrutural. Apresente sua resposta de forma clara com os valores encontrados e pergunte se estão corretos." : ""}
 
-Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, confirme que entendeu e incorpore a correção no seu aprendizado.`;
+Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, confirme que entendeu e incorpore a correção.`;
 
       const fileUrls = anexosAtuais.map(a => a.fileUrl).filter(Boolean);
       const response = await base44.integrations.Core.InvokeLLM({
@@ -266,18 +304,25 @@ Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, con
       const historicoAtualizado = [...novasMensagens, msgIA];
       setMensagens(historicoAtualizado);
 
-      // Salvar histórico como arquivo e atualizar status
       const totalExemplos = (agente.total_exemplos || 0) + (anexosAtuais.length > 0 ? 1 : 0);
       const novoStatus = totalExemplos === 0 ? "iniciando" : totalExemplos < 3 ? "em_treinamento" : "treinado";
       const urlHistorico = await salvarHistorico(historicoAtualizado);
+
+      // A cada 3 mensagens da IA, consolidar o conhecimento no banco de dados
+      const mensagensIA = historicoAtualizado.filter(m => m.role === "assistant").length;
+      let novaBase = agente.base_conhecimento || "";
+      if (mensagensIA > 0 && mensagensIA % 3 === 0) {
+        novaBase = await consolidarConhecimento(historicoAtualizado, novaBase);
+      }
 
       await base44.entities.AgenteIA.update(agente.id, {
         historico_conversa: urlHistorico,
         total_exemplos: totalExemplos,
         status_treinamento: novoStatus,
+        ...(novaBase !== agente.base_conhecimento ? { base_conhecimento: novaBase } : {}),
       });
 
-      setAgente(ag => ({ ...ag, total_exemplos: totalExemplos, status_treinamento: novoStatus }));
+      setAgente(ag => ({ ...ag, total_exemplos: totalExemplos, status_treinamento: novoStatus, base_conhecimento: novaBase }));
     } catch (e) {
       const msgErro = {
         role: "assistant",
@@ -291,20 +336,31 @@ Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, con
   }
 
   async function handleLimparHistorico() {
-    if (!agente || !confirm("Apagar todo o histórico de treinamento deste produto?")) return;
+    if (!agente || !confirm("Apagar o histórico de chat? O conhecimento técnico consolidado será preservado no banco de dados.")) return;
+
+    // Consolidar conhecimento antes de limpar (garante que nada seja perdido)
+    let baseAtualizada = agente.base_conhecimento || "";
+    if (mensagens.length > 2) {
+      try {
+        baseAtualizada = await consolidarConhecimento(mensagens, baseAtualizada);
+      } catch (e) {
+        console.warn("Aviso: não foi possível consolidar conhecimento antes da limpeza:", e);
+      }
+    }
+
     const boasVindas = [{
       role: "assistant",
-      content: `Histórico apagado. Vamos começar do zero!\n\nEnvie um PDF de exemplo para treinar o agente do produto **${selectedProduto?.nome}**.`,
+      content: `Histórico de chat apagado. ✅\n\n**O conhecimento técnico foi preservado** — continuo sabendo tudo que aprendi sobre o produto **${selectedProduto?.nome}**.\n\nPode continuar enviando exemplos ou fazer perguntas normalmente.`,
       timestamp: Date.now(),
     }];
+
     const urlHistorico = await salvarHistorico(boasVindas);
     await base44.entities.AgenteIA.update(agente.id, {
       historico_conversa: urlHistorico,
-      total_exemplos: 0,
-      status_treinamento: "iniciando",
+      base_conhecimento: baseAtualizada,
     });
     setMensagens(boasVindas);
-    setAgente(ag => ({ ...ag, total_exemplos: 0, status_treinamento: "iniciando" }));
+    setAgente(ag => ({ ...ag, base_conhecimento: baseAtualizada }));
   }
 
   const statusInfo = {
@@ -412,12 +468,20 @@ Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, con
                 </div>
               </div>
 
+              {/* Indicador de base de conhecimento */}
+              {agente.base_conhecimento && (
+                <div className="flex items-center gap-1.5 bg-[#F0FDF4] border border-[#BBF7D0] rounded-lg px-2.5 py-1.5">
+                  <CheckCircle className="w-3 h-3 text-[#22C55E] flex-shrink-0" />
+                  <span className="text-[10px] text-[#15803D] font-medium">Base de conhecimento salva</span>
+                </div>
+              )}
+
               <button
                 onClick={handleLimparHistorico}
                 className="flex items-center gap-1.5 text-[10px] text-[#EF4444] hover:text-red-700 mt-1"
               >
                 <Trash2 className="w-3 h-3" />
-                Limpar histórico
+                Limpar histórico de chat
               </button>
             </div>
           )}

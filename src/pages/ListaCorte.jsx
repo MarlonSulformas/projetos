@@ -226,12 +226,16 @@ export default function ListaCorte() {
     setPdfNome(file.name);
 
     try {
-      // Carregar histórico do agente treinado (pode ser URL ou JSON inline)
-      const historico = await carregarHistorico(agente.historico_conversa);
-      const resumoTreinamento = historico
-        .slice(-20)
-        .map(m => `${m.role === "user" ? "Engenheiro" : "IA"}: ${m.content}`)
-        .join("\n");
+      // Usar base de conhecimento consolidada (persistente, independente do histórico de chat)
+      // Fallback: carregar histórico se base_conhecimento ainda não existir
+      let resumoTreinamento = agente.base_conhecimento || "";
+      if (!resumoTreinamento) {
+        const historico = await carregarHistorico(agente.historico_conversa);
+        resumoTreinamento = historico
+          .slice(-20)
+          .map(m => `${m.role === "user" ? "Engenheiro" : "IA"}: ${m.content}`)
+          .join("\n");
+      }
 
       setProgresso({ atual: 0, total: 0, msg: "Convertendo PDF em imagens..." });
       const imagens = await pdfToImagens(file);
