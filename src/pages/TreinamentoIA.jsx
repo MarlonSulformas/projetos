@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { ArrowLeft, Upload, Send, Bot, User, Trash2, CheckCircle, BookOpen, FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
+import { db } from "@/lib/supabaseClient";
 import * as pdfjsLib from "pdfjs-dist";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -26,7 +27,7 @@ async function pdfPageToBase64(file, pageNum = 1) {
 function ProdutoSelector({ produtos, projetistas, selectedProduto, onSelect }) {
   const [projetistaId, setProjetistaId] = useState("");
   const produtosFiltrados = projetistaId
-    ? produtos.filter(p => p.projetista_id === projetistaId)
+    ? produtos.filter(p => (p.id_projetista || p.projetista_id) === projetistaId)
     : produtos;
 
   return (
@@ -110,10 +111,10 @@ export default function TreinamentoIA() {
   const fileInputRef = useRef(null);
   const chatEndRef = useRef(null);
 
-  // Carregar produtos e projetistas
+  // Carregar produtos e projetistas do Supabase
   useEffect(() => {
-    base44.entities.ProdutoEstrutural.list().then(setProdutos).catch(console.warn);
-    base44.entities.Projetista.list().then(setProjetistas).catch(console.warn);
+    db.listProdutos().then(data => setProdutos(data || [])).catch(console.warn);
+    db.listProjetistas().then(data => setProjetistas(data || [])).catch(console.warn);
   }, []);
 
   // Scroll automático

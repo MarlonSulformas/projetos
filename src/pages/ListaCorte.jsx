@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { ArrowLeft, Upload, FileText, Loader2, ChevronDown, ChevronUp, Package, Bot, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
+import { db } from "@/lib/supabaseClient";
 import * as pdfjsLib from "pdfjs-dist";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -141,7 +142,7 @@ function TabelaElemento({ elemento, index }) {
 // ── Seletor de Produto ─────────────────────────────────────────────────────────
 function ProdutoSelector({ produtos, projetistas, selectedProduto, onSelect, agente }) {
   const [projetistaId, setProjetistaId] = useState("");
-  const produtosFiltrados = projetistaId ? produtos.filter(p => p.projetista_id === projetistaId) : produtos;
+  const produtosFiltrados = projetistaId ? produtos.filter(p => (p.id_projetista || p.projetista_id) === projetistaId) : produtos;
   const statusInfo = {
     iniciando:      { label: "Sem treinamento", color: "#9CA3AF" },
     em_treinamento: { label: "Em treinamento",  color: "#F59E0B" },
@@ -200,8 +201,8 @@ export default function ListaCorte() {
   const [pdfNome, setPdfNome] = useState(null);
 
   useEffect(() => {
-    base44.entities.ProdutoEstrutural.list().then(setProdutos).catch(console.warn);
-    base44.entities.Projetista.list().then(setProjetistas).catch(console.warn);
+    db.listProdutos().then(data => setProdutos(data || [])).catch(console.warn);
+    db.listProjetistas().then(data => setProjetistas(data || [])).catch(console.warn);
   }, []);
 
   // Carregar agente ao selecionar produto
