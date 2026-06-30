@@ -9,7 +9,8 @@ async function call(action, table, data = null, filters = null) {
 export const db = {
   // projetistas
   async listProjetistas() {
-    return call("select", "projetistas");
+    const data = await call("select", "projetistas");
+    return (data || []).map(p => ({ ...p, nome: p.nome || p.nome_razao_social || "" }));
   },
   async createProjetista(data) {
     return call("insert", "projetistas", data);
