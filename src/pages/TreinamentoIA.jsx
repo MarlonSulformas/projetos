@@ -117,8 +117,9 @@ export default function TreinamentoIA() {
   const [input, setInput] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [loadingAgente, setLoadingAgente] = useState(false);
-  const [pdfAnexo, setPdfAnexo] = useState(null); // { file, nome, base64, totalPages }
+  const [anexos, setAnexos] = useState([]); // [{ file, nome, fileUrl, totalPages }]
   const fileInputRef = useRef(null);
+  const MAX_ANEXOS = 5;
   const chatEndRef = useRef(null);
 
   // Carregar produtos e projetistas do Supabase
@@ -178,11 +179,11 @@ export default function TreinamentoIA() {
 
   async function handleAnexarArquivo(file) {
     if (!file) return;
+    if (anexos.length >= MAX_ANEXOS) return;
     try {
       let fileUrl, totalPages = null;
 
       if (file.type === "application/pdf") {
-        // PDF: converte primeira página em imagem e faz upload
         const { base64, totalPages: pages } = await pdfPageToBase64(file);
         const res = await fetch(base64);
         const blob = await res.blob();
@@ -191,27 +192,27 @@ export default function TreinamentoIA() {
         fileUrl = uploaded.file_url;
         totalPages = pages;
       } else if (file.type.startsWith("image/")) {
-        // Imagem direta: upload direto
         const uploaded = await base44.integrations.Core.UploadFile({ file });
         fileUrl = uploaded.file_url;
       } else {
         return;
       }
 
-      setPdfAnexo({ file, nome: file.name, fileUrl, totalPages });
+      setAnexos(prev => [...prev, { file, nome: file.name, fileUrl, totalPages }]);
     } catch (e) {
       console.warn("Erro ao processar arquivo:", e);
     }
   }
 
   async function handleEnviar() {
-    if (!input.trim() && !pdfAnexo) return;
+    if (!input.trim() && anexos.length === 0) return;
     if (!agente) return;
 
+    const nomesAnexos = anexos.map(a => a.nome);
     const msgUsuario = {
       role: "user",
-      content: input.trim() || `Analisando o PDF: ${pdfAnexo?.nome}`,
-      pdfNome: pdfAnexo?.nome || null,
+      content: input.trim() || `Analisando ${anexos.length} arquivo(s): ${nomesAnexos.join(", ")}`,
+      pdfNome: nomesAnexos.length > 0 ? nomesAnexos.join(", ") : null,
       timestamp: Date.now(),
     };
 
@@ -219,8 +220,8 @@ export default function TreinamentoIA() {
     setMensagens(novasMensagens);
     setInput("");
     setEnviando(true);
-    const pdfAtual = pdfAnexo;
-    setPdfAnexo(null);
+    const anexosAtuais = [...anexos];
+    setAnexos([]);
 
     try {
       // Montar histórico para contexto do Gemini
@@ -238,14 +239,15 @@ ${historicoFormatado.slice(0, -1).map(h => `${h.role}: ${h.texto}`).join("\n")}
 
 NOVA MENSAGEM DO ENGENHEIRO: ${msgUsuario.content}
 
-${pdfAtual ? "O engenheiro enviou uma imagem da prancha técnica para análise. Analise a imagem e extraia as dimensões principais (altura X e largura Y em cm) do elemento estrutural. Apresente sua resposta de forma clara com os valores encontrados e pergunte se estão corretos." : ""}
+${anexosAtuais.length > 0 ? "O engenheiro enviou imagem(ns) da prancha técnica para análise. Analise as imagens e extraia as dimensões principais (altura X e largura Y em cm) do elemento estrutural. Apresente sua resposta de forma clara com os valores encontrados e pergunte se estão corretos." : ""}
 
 Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, confirme que entendeu e incorpore a correção no seu aprendizado.`;
 
+      const fileUrls = anexosAtuais.map(a => a.fileUrl).filter(Boolean);
       const response = await base44.integrations.Core.InvokeLLM({
         prompt: promptBase,
         model: "gemini_3_flash",
-        file_urls: pdfAtual?.fileUrl ? [pdfAtual.fileUrl] : undefined,
+        file_urls: fileUrls.length > 0 ? fileUrls : undefined,
       });
 
       const msgIA = {
@@ -258,7 +260,7 @@ Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, con
       setMensagens(historicoAtualizado);
 
       // Salvar histórico e atualizar status
-      const totalExemplos = (agente.total_exemplos || 0) + (pdfAtual ? 1 : 0);
+      const totalExemplos = (agente.total_exemplos || 0) + (anexosAtuais.length > 0 ? 1 : 0);
       const novoStatus = totalExemplos === 0 ? "iniciando" : totalExemplos < 3 ? "em_treinamento" : "treinado";
 
       await base44.entities.AgenteIA.update(agente.id, {
@@ -474,13 +476,23 @@ Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, con
 
               {/* Input area */}
               <div className="flex-shrink-0 bg-white border-t border-[#F1F1F4] p-4">
-                {/* PDF anexado */}
-                {pdfAnexo && (
-                  <div className="flex items-center gap-2 mb-3 bg-[#EFF6FF] border border-[#BFDBFE] rounded-xl px-3 py-2">
-                    <FileText className="w-4 h-4 text-[#3B82F6] flex-shrink-0" />
-                    <span className="flex-1 text-xs font-medium text-[#1D4ED8] truncate">{pdfAnexo.nome}</span>
-                    <span className="text-[10px] text-[#60A5FA]">{pdfAnexo.totalPages} pág.</span>
-                    <button onClick={() => setPdfAnexo(null)} className="text-[#93C5FD] hover:text-[#3B82F6] ml-1">✕</button>
+                {/* Anexos */}
+                {anexos.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {anexos.map((anexo, i) => (
+                      <div key={i} className="flex items-center gap-1.5 bg-[#EFF6FF] border border-[#BFDBFE] rounded-xl px-2.5 py-1.5">
+                        <FileText className="w-3.5 h-3.5 text-[#3B82F6] flex-shrink-0" />
+                        <span className="text-xs font-medium text-[#1D4ED8] max-w-[120px] truncate">{anexo.nome}</span>
+                        {anexo.totalPages && <span className="text-[10px] text-[#60A5FA]">{anexo.totalPages}p.</span>}
+                        <button onClick={() => setAnexos(prev => prev.filter((_, idx) => idx !== i))} className="text-[#93C5FD] hover:text-[#3B82F6] ml-0.5 text-xs leading-none">✕</button>
+                      </div>
+                    ))}
+                    {anexos.length < MAX_ANEXOS && (
+                      <span className="text-[10px] text-[#9CA3AF] self-center">{anexos.length}/{MAX_ANEXOS} anexos</span>
+                    )}
+                    {anexos.length >= MAX_ANEXOS && (
+                      <span className="text-[10px] text-[#F59E0B] self-center font-medium">Limite de {MAX_ANEXOS} anexos atingido</span>
+                    )}
                   </div>
                 )}
 
@@ -491,11 +503,13 @@ Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, con
                     type="file"
                     accept=".pdf,image/*"
                     className="hidden"
-                    onChange={e => { const f = e.target.files?.[0]; if (f) handleAnexarArquivo(f); e.target.value = ""; }}
+                    multiple
+                    onChange={e => { Array.from(e.target.files || []).slice(0, MAX_ANEXOS - anexos.length).forEach(f => handleAnexarArquivo(f)); e.target.value = ""; }}
                   />
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-10 h-10 rounded-xl border border-[#E5E5E8] flex items-center justify-center text-[#6B7280] hover:bg-[#EFF6FF] hover:text-[#3B82F6] hover:border-[#93C5FD] transition-all flex-shrink-0"
+                    disabled={anexos.length >= MAX_ANEXOS}
+                    className="w-10 h-10 rounded-xl border border-[#E5E5E8] flex items-center justify-center text-[#6B7280] hover:bg-[#EFF6FF] hover:text-[#3B82F6] hover:border-[#93C5FD] transition-all flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
                     title="Anexar PDF ou imagem (PNG, JPG)"
                   >
                     <Upload className="w-4 h-4" />
@@ -527,7 +541,7 @@ Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, con
                   {/* Botão enviar */}
                   <button
                     onClick={handleEnviar}
-                    disabled={enviando || (!input.trim() && !pdfAnexo)}
+                    disabled={enviando || (!input.trim() && anexos.length === 0)}
                     className="w-10 h-10 rounded-xl bg-[#8B5CF6] text-white flex items-center justify-center hover:bg-[#7C3AED] transition-all disabled:opacity-40 flex-shrink-0"
                   >
                     {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
