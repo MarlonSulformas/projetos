@@ -176,18 +176,31 @@ export default function TreinamentoIA() {
     });
   }, [selectedProduto]);
 
-  async function handleAnexarPDF(file) {
-    if (!file || file.type !== "application/pdf") return;
+  async function handleAnexarArquivo(file) {
+    if (!file) return;
     try {
-      const { base64, totalPages } = await pdfPageToBase64(file);
-      // Converter base64 para Blob e fazer upload para obter URL real
-      const res = await fetch(base64);
-      const blob = await res.blob();
-      const imageFile = new File([blob], file.name.replace(".pdf", ".jpg"), { type: "image/jpeg" });
-      const { file_url } = await base44.integrations.Core.UploadFile({ file: imageFile });
-      setPdfAnexo({ file, nome: file.name, fileUrl: file_url, totalPages });
+      let fileUrl, totalPages = null;
+
+      if (file.type === "application/pdf") {
+        // PDF: converte primeira página em imagem e faz upload
+        const { base64, totalPages: pages } = await pdfPageToBase64(file);
+        const res = await fetch(base64);
+        const blob = await res.blob();
+        const imageFile = new File([blob], file.name.replace(".pdf", ".jpg"), { type: "image/jpeg" });
+        const uploaded = await base44.integrations.Core.UploadFile({ file: imageFile });
+        fileUrl = uploaded.file_url;
+        totalPages = pages;
+      } else if (file.type.startsWith("image/")) {
+        // Imagem direta: upload direto
+        const uploaded = await base44.integrations.Core.UploadFile({ file });
+        fileUrl = uploaded.file_url;
+      } else {
+        return;
+      }
+
+      setPdfAnexo({ file, nome: file.name, fileUrl, totalPages });
     } catch (e) {
-      console.warn("Erro ao processar PDF:", e);
+      console.warn("Erro ao processar arquivo:", e);
     }
   }
 
@@ -476,14 +489,14 @@ Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, con
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".pdf"
+                    accept=".pdf,image/*"
                     className="hidden"
-                    onChange={e => { const f = e.target.files?.[0]; if (f) handleAnexarPDF(f); e.target.value = ""; }}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleAnexarArquivo(f); e.target.value = ""; }}
                   />
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     className="w-10 h-10 rounded-xl border border-[#E5E5E8] flex items-center justify-center text-[#6B7280] hover:bg-[#EFF6FF] hover:text-[#3B82F6] hover:border-[#93C5FD] transition-all flex-shrink-0"
-                    title="Anexar PDF"
+                    title="Anexar PDF ou imagem (PNG, JPG)"
                   >
                     <Upload className="w-4 h-4" />
                   </button>
