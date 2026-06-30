@@ -24,11 +24,17 @@ async function pdfPageToBase64(file, pageNum = 1) {
 }
 
 // ── Seletor de Produto ─────────────────────────────────────────────────────────
-function ProdutoSelector({ produtos, projetistas, selectedProduto, onSelect }) {
+function ProdutoSelector({ produtos, projetistas, selectedProduto, onSelect, onProjetistaChange }) {
   const [projetistaId, setProjetistaId] = useState("");
   const produtosFiltrados = projetistaId
     ? produtos.filter(p => (p.id_projetista || p.projetista_id) === projetistaId)
-    : produtos;
+    : [];
+
+  function handleProjetistaChange(e) {
+    setProjetistaId(e.target.value);
+    onSelect(null); // limpa produto ao trocar projetista
+    onProjetistaChange(e.target.value);
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -36,24 +42,27 @@ function ProdutoSelector({ produtos, projetistas, selectedProduto, onSelect }) {
         <label className="text-[10px] font-semibold text-[#6B6B72] uppercase tracking-wider">Projetista</label>
         <select
           value={projetistaId}
-          onChange={e => setProjetistaId(e.target.value)}
+          onChange={handleProjetistaChange}
           className="border border-[#E5E5E8] rounded-xl px-3 py-2 text-sm text-[#1F1F24] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6] bg-white"
         >
-          <option value="">Todos os projetistas</option>
+          <option value="">Selecionar projetista...</option>
           {projetistas.map(p => (
             <option key={p.id} value={p.id}>{p.nome}</option>
           ))}
         </select>
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-[10px] font-semibold text-[#6B6B72] uppercase tracking-wider">Produto</label>
+        <label className="text-[10px] font-semibold text-[#6B6B72] uppercase tracking-wider">
+          Produto {!projetistaId && <span className="text-[#D1D5DB] normal-case font-normal">— selecione o projetista primeiro</span>}
+        </label>
         <select
           value={selectedProduto?.id || ""}
+          disabled={!projetistaId}
           onChange={e => {
             const prod = produtosFiltrados.find(p => p.id === e.target.value);
             if (prod) onSelect(prod);
           }}
-          className="border border-[#E5E5E8] rounded-xl px-3 py-2 text-sm text-[#1F1F24] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6] bg-white"
+          className="border border-[#E5E5E8] rounded-xl px-3 py-2 text-sm text-[#1F1F24] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6] bg-white disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <option value="">Selecionar produto...</option>
           {produtosFiltrados.map(p => (
@@ -101,6 +110,7 @@ function MessageBubble({ msg }) {
 export default function TreinamentoIA() {
   const [produtos, setProdutos] = useState([]);
   const [projetistas, setProjetistas] = useState([]);
+  const [selectedProjetistaId, setSelectedProjetistaId] = useState("");
   const [selectedProduto, setSelectedProduto] = useState(null);
   const [agente, setAgente] = useState(null);
   const [mensagens, setMensagens] = useState([]);
@@ -129,12 +139,13 @@ export default function TreinamentoIA() {
     setMensagens([]);
     setAgente(null);
 
-    base44.entities.AgenteIA.filter({ produto_id: selectedProduto.id }).then(async (resultados) => {
+    base44.entities.AgenteIA.filter({ produto_id: selectedProduto.id, projetista_id: selectedProjetistaId }).then(async (resultados) => {
       let ag = resultados[0];
       if (!ag) {
         // Criar novo agente para este produto
         ag = await base44.entities.AgenteIA.create({
           produto_id: selectedProduto.id,
+          projetista_id: selectedProjetistaId,
           nome_produto: selectedProduto.nome,
           historico_conversa: JSON.stringify([]),
           status_treinamento: "iniciando",
@@ -334,6 +345,7 @@ Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, con
             projetistas={projetistas}
             selectedProduto={selectedProduto}
             onSelect={setSelectedProduto}
+          onProjetistaChange={setSelectedProjetistaId}
           />
 
           {agente && (

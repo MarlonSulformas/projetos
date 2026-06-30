@@ -142,7 +142,7 @@ function TabelaElemento({ elemento, index }) {
 // ── Seletor de Produto ─────────────────────────────────────────────────────────
 function ProdutoSelector({ produtos, projetistas, selectedProduto, onSelect, agente }) {
   const [projetistaId, setProjetistaId] = useState("");
-  const produtosFiltrados = projetistaId ? produtos.filter(p => (p.id_projetista || p.projetista_id) === projetistaId) : produtos;
+  const produtosFiltrados = projetistaId ? produtos.filter(p => (p.id_projetista || p.projetista_id) === projetistaId) : [];
   const statusInfo = {
     iniciando:      { label: "Sem treinamento", color: "#9CA3AF" },
     em_treinamento: { label: "Em treinamento",  color: "#F59E0B" },
@@ -158,16 +158,16 @@ function ProdutoSelector({ produtos, projetistas, selectedProduto, onSelect, age
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-[10px] font-semibold text-[#6B6B72]">Projetista</label>
-        <select value={projetistaId} onChange={e => setProjetistaId(e.target.value)}
+        <select value={projetistaId} onChange={e => { setProjetistaId(e.target.value); onSelect(null); }}
           className="border border-[#E5E5E8] rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#8B5CF6] bg-white">
-          <option value="">Todos</option>
+          <option value="">Selecionar projetista...</option>
           {projetistas.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
         </select>
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-[10px] font-semibold text-[#6B6B72]">Produto</label>
-        <select value={selectedProduto?.id || ""} onChange={e => { const p = produtosFiltrados.find(x => x.id === e.target.value); if (p) onSelect(p); }}
-          className="border border-[#E5E5E8] rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#8B5CF6] bg-white">
+        <select value={selectedProduto?.id || ""} disabled={!projetistaId} onChange={e => { const p = produtosFiltrados.find(x => x.id === e.target.value); if (p) onSelect(p); }}
+          className="border border-[#E5E5E8] rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#8B5CF6] bg-white disabled:opacity-50 disabled:cursor-not-allowed">
           <option value="">Selecionar...</option>
           {produtosFiltrados.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
         </select>
