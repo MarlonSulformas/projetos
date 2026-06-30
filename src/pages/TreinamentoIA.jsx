@@ -222,6 +222,14 @@ export default function TreinamentoIA() {
     const anexosAtuais = [...anexos];
     setAnexos([]);
 
+    // Salvar mensagem do usuário imediatamente (antes da resposta da IA)
+    try {
+      const urlParcial = await salvarHistorico(novasMensagens);
+      await base44.entities.AgenteIA.update(agente.id, { historico_conversa: urlParcial });
+    } catch (saveErr) {
+      console.warn("Aviso: não foi possível salvar mensagem parcial:", saveErr);
+    }
+
     try {
       // Montar histórico para contexto do Gemini
       const historicoFormatado = novasMensagens.slice(-10).map(m => ({
