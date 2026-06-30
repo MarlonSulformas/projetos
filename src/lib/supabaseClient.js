@@ -24,7 +24,8 @@ export const db = {
 
   // produtos
   async listProdutos() {
-    return call("select", "produtos");
+    const data = await call("select", "produtos");
+    return (data || []).map(p => ({ ...p, nome: p.nome || p.nome_produto || "" }));
   },
   async listProdutosByProjetista(id_projetista) {
     return call("select", "produtos", null, { id_projetista });
