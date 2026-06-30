@@ -5,7 +5,7 @@ import { ArrowLeft, Upload, FileText, Loader2, ChevronDown, ChevronUp, Package, 
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
 import { db } from "@/lib/supabaseClient";
-import { carregarHistorico } from "@/lib/historicoStorage";
+
 import * as pdfjsLib from "pdfjs-dist";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -227,15 +227,7 @@ export default function ListaCorte() {
 
     try {
       // Usar base de conhecimento consolidada (persistente, independente do histórico de chat)
-      // Fallback: carregar histórico se base_conhecimento ainda não existir
-      let resumoTreinamento = agente.base_conhecimento || "";
-      if (!resumoTreinamento) {
-        const historico = await carregarHistorico(agente.historico_conversa);
-        resumoTreinamento = historico
-          .slice(-20)
-          .map(m => `${m.role === "user" ? "Engenheiro" : "IA"}: ${m.content}`)
-          .join("\n");
-      }
+      const resumoTreinamento = agente.base_conhecimento || "";
 
       setProgresso({ atual: 0, total: 0, msg: "Convertendo PDF em imagens..." });
       const imagens = await pdfToImagens(file);
