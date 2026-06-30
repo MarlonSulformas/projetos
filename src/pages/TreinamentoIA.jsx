@@ -203,31 +203,33 @@ export default function TreinamentoIA() {
     }
   }
 
-  // Extrai e consolida o conhecimento técnico do histórico via IA
+  // Consolida conhecimento ACUMULANDO, nunca substituindo detalhes anteriores
   async function consolidarConhecimento(historicoAtualizado, baseAtual) {
-    const historicoTexto = historicoAtualizado
-      .filter(m => m.role === "assistant")
-      .map(m => m.content)
-      .join("\n\n---\n\n");
+    const todasMensagens = historicoAtualizado
+      .map(m => `${m.role === "user" ? "ENGENHEIRO" : "IA"}: ${m.content}`)
+      .join("\n\n");
 
-    const prompt = `Você é um sistema de extração de conhecimento técnico.
+    const prompt = `Você é um sistema de extração de conhecimento técnico para formas de pré-moldados.
 
-BASE DE CONHECIMENTO ATUAL (já consolidada anteriormente):
+BASE DE CONHECIMENTO ANTERIOR (NÃO PERCA NENHUM DETALHE DESTA BASE):
 ${baseAtual || "Nenhuma base ainda."}
 
-NOVAS RESPOSTAS DA IA NO CHAT:
-${historicoTexto}
+CONVERSA COMPLETA DE TREINAMENTO:
+${todasMensagens}
 
-TAREFA: Analise tudo acima e gere um RESUMO TÉCNICO CONSOLIDADO e ATUALIZADO com todas as regras, dimensões, fórmulas e aprendizados sobre este produto estrutural.
+TAREFA: Gere uma BASE DE CONHECIMENTO TÉCNICO COMPLETA E DETALHADA, incorporando TUDO da base anterior + tudo aprendido na conversa acima.
 
-O resumo deve:
-- Ser objetivo e técnico
-- Incluir todas as regras de dimensionamento aprendidas
-- Incluir fórmulas e relações entre medidas
-- Incluir observações sobre tipos de sarrafos, compensados, seções
-- Ser completo o suficiente para que a IA gere listas de corte corretas sem ver o histórico de chat
+REGRAS OBRIGATÓRIAS:
+- NUNCA remova ou simplifique informações da base anterior — apenas adicione e corrija
+- Preserve TODOS os valores numéricos exatos (medidas em cm, quantidades, espessuras)
+- Preserve TODAS as fórmulas e cálculos ensinados
+- Preserve TODOS os casos especiais, exceções e regras de folga
+- Preserve TODOS os nomes de componentes exatamente como foram ensinados
+- Se o engenheiro corrigiu um valor, registre a correção E a regra geral
+- Organize por seções: Identificação do Elemento, Dimensões de Concreto, Compensado, Sarrafos, Casos Especiais, Regras de Folga
 
-Responda APENAS com o resumo técnico, sem introdução.`;
+Seja EXTREMAMENTE detalhado — quanto mais detalhe, melhor a geração de listas de corte.
+Responda APENAS com a base de conhecimento técnico atualizada, sem introdução.`;
 
     const resposta = await base44.integrations.Core.InvokeLLM({
       prompt,
@@ -308,18 +310,15 @@ Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, con
       const novoStatus = totalExemplos === 0 ? "iniciando" : totalExemplos < 3 ? "em_treinamento" : "treinado";
       const urlHistorico = await salvarHistorico(historicoAtualizado);
 
-      // A cada 3 mensagens da IA, consolidar o conhecimento no banco de dados
-      const mensagensIA = historicoAtualizado.filter(m => m.role === "assistant").length;
+      // Consolidar conhecimento a cada mensagem da IA (sempre atualizado)
       let novaBase = agente.base_conhecimento || "";
-      if (mensagensIA > 0 && mensagensIA % 3 === 0) {
-        novaBase = await consolidarConhecimento(historicoAtualizado, novaBase);
-      }
+      novaBase = await consolidarConhecimento(historicoAtualizado, novaBase);
 
       await base44.entities.AgenteIA.update(agente.id, {
         historico_conversa: urlHistorico,
         total_exemplos: totalExemplos,
         status_treinamento: novoStatus,
-        ...(novaBase !== agente.base_conhecimento ? { base_conhecimento: novaBase } : {}),
+        base_conhecimento: novaBase,
       });
 
       setAgente(ag => ({ ...ag, total_exemplos: totalExemplos, status_treinamento: novoStatus, base_conhecimento: novaBase }));
