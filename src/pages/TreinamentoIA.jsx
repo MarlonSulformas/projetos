@@ -7,6 +7,7 @@ import { base44 } from "@/api/base44Client";
 import { db } from "@/lib/supabaseClient";
 import { salvarHistorico, carregarHistorico } from "@/lib/historicoStorage";
 import * as pdfjsLib from "pdfjs-dist";
+import KnowledgeSections from "@/components/treinamento/KnowledgeSections";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
@@ -428,16 +429,48 @@ Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, con
       if (line.startsWith("## ")) {
         if (current) sections.push(current);
         current = { titulo: line.replace("## ", "").trim(), conteudo: [] };
-      } else if (current && line.trim()) {
-        current.conteudo.push(line.trim());
+      } else if (current) {
+        current.conteudo.push(line);
       }
     }
     if (current) sections.push(current);
-    // Fallback: se não houver seções ##, retorna o texto bruto em blocos por linha em branco
     if (sections.length === 0 && base.trim()) {
-      return [{ titulo: "Base de Conhecimento", conteudo: base.split("\n").filter(l => l.trim()) }];
+      return [{ titulo: "Base de Conhecimento", conteudo: base.split("\n") }];
     }
     return sections;
+  }
+
+  // Renderiza uma linha de texto com formatação básica de markdown
+  function renderLinha(linha, idx) {
+    if (!linha.trim()) return <div key={idx} className="h-2" />;
+    // Título ###
+    if (linha.startsWith("### ")) {
+      return <p key={idx} className="text-[11px] font-bold text-[#1F1F24] uppercase tracking-wider mt-2 mb-1">{linha.replace("### ", "")}</p>;
+    }
+    // Linha com **negrito**
+    const parts = linha.split(/(\*\*[^*]+\*\*)/g);
+    const formatted = parts.map((p, i) =>
+      p.startsWith("**") && p.endsWith("**")
+        ? <strong key={i} className="font-semibold text-[#1F1F24]">{p.slice(2, -2)}</strong>
+        : <span key={i}>{p}</span>
+    );
+    // Bullet
+    const isBullet = linha.trim().startsWith("- ") || linha.trim().startsWith("* ");
+    if (isBullet) {
+      const content = linha.trim().replace(/^[-*]\s/, "");
+      const contentParts = content.split(/(\*\*[^*]+\*\*)/g).map((p, i) =>
+        p.startsWith("**") && p.endsWith("**")
+          ? <strong key={i} className="font-semibold text-[#1F1F24]">{p.slice(2, -2)}</strong>
+          : <span key={i}>{p}</span>
+      );
+      return (
+        <div key={idx} className="flex gap-2 items-start py-0.5">
+          <div className="w-1.5 h-1.5 rounded-full bg-[#8B5CF6] mt-1.5 flex-shrink-0" />
+          <p className="text-[11px] text-[#374151] leading-relaxed">{contentParts}</p>
+        </div>
+      );
+    }
+    return <p key={idx} className="text-[11px] text-[#374151] leading-relaxed py-0.5">{formatted}</p>;
   }
 
   return (
@@ -450,65 +483,70 @@ Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, con
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-0 sm:p-4"
             onClick={() => setShowRegras(false)}
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              transition={{ duration: 0.15 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden"
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 40 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl flex flex-col overflow-hidden"
+              style={{ maxHeight: "88vh" }}
               onClick={e => e.stopPropagation()}
             >
-              {/* Header do modal */}
-              <div className="flex items-center justify-between px-5 py-4 border-b border-[#F1F1F4]">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-[#EDE9FE] flex items-center justify-center">
-                    <ScrollText className="w-3.5 h-3.5 text-[#8B5CF6]" />
+              {/* Header */}
+              <div className="relative px-6 pt-6 pb-4 bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex-shrink-0">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                      <ScrollText className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-base font-bold text-white">Base de Conhecimento</p>
+                      <p className="text-[11px] text-white/70 mt-0.5">{selectedProduto?.nome}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-[#0F0F0F]">Base de Conhecimento</p>
-                    <p className="text-[10px] text-[#9CA3AF]">{selectedProduto?.nome} — regras aprendidas pelo agente</p>
-                  </div>
+                  <button onClick={() => setShowRegras(false)} className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors mt-0.5">
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-                <button onClick={() => setShowRegras(false)} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#9CA3AF] hover:bg-[#F1F1F4] hover:text-[#374151] transition-colors">
-                  <X className="w-4 h-4" />
-                </button>
+                {agente?.base_conhecimento && (
+                  <div className="flex gap-2 mt-4">
+                    <div className="flex items-center gap-1.5 bg-white/20 rounded-lg px-2.5 py-1">
+                      <div className="w-1.5 h-1.5 rounded-full bg-[#4ADE80]" />
+                      <span className="text-[10px] text-white font-medium">{parseBaseConhecimento(agente.base_conhecimento).length} seções</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 bg-white/20 rounded-lg px-2.5 py-1">
+                      <CheckCircle className="w-3 h-3 text-white/80" />
+                      <span className="text-[10px] text-white font-medium">Atualizado automaticamente</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Conteúdo */}
-              <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
+              <div className="flex-1 overflow-y-auto bg-[#F8F9FB]">
                 {!agente?.base_conhecimento ? (
-                  <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
-                    <div className="w-12 h-12 rounded-xl bg-[#F1F1F4] flex items-center justify-center">
-                      <BookOpen className="w-6 h-6 text-[#D1D5DB]" />
+                  <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-6">
+                    <div className="w-14 h-14 rounded-2xl bg-[#F1F1F4] flex items-center justify-center">
+                      <BookOpen className="w-7 h-7 text-[#D1D5DB]" />
                     </div>
-                    <p className="text-sm text-[#6B7280]">Nenhuma regra aprendida ainda.</p>
-                    <p className="text-xs text-[#9CA3AF]">Converse com o agente para ele aprender as regras do produto.</p>
+                    <p className="text-sm font-semibold text-[#6B7280]">Nenhuma regra aprendida ainda.</p>
+                    <p className="text-xs text-[#9CA3AF] max-w-xs">Converse com o agente enviando exemplos para ele aprender as regras do produto.</p>
                   </div>
                 ) : (
-                  parseBaseConhecimento(agente.base_conhecimento).map((section, i) => (
-                    <div key={i} className="bg-[#FAFAFA] border border-[#E5E5E8] rounded-xl overflow-hidden">
-                      <div className="flex items-center gap-2 px-4 py-2.5 bg-[#F1F1F4] border-b border-[#E5E5E8]">
-                        <div className="w-5 h-5 rounded-md bg-[#8B5CF6] flex items-center justify-center flex-shrink-0">
-                          <span className="text-[9px] font-bold text-white">{i + 1}</span>
-                        </div>
-                        <span className="text-xs font-semibold text-[#1F1F24]">{section.titulo}</span>
-                      </div>
-                      <div className="px-4 py-3 flex flex-col gap-1">
-                        {section.conteudo.map((linha, j) => (
-                          <p key={j} className="text-[11px] text-[#374151] leading-relaxed font-mono whitespace-pre-wrap">{linha}</p>
-                        ))}
-                      </div>
-                    </div>
-                  ))
+                  <KnowledgeSections
+                    sections={parseBaseConhecimento(agente.base_conhecimento)}
+                    renderLinha={renderLinha}
+                  />
                 )}
               </div>
 
               {/* Footer */}
-              <div className="px-5 py-3 border-t border-[#F1F1F4] bg-[#FAFAFA] flex justify-end">
-                <button onClick={() => setShowRegras(false)} className="h-8 px-4 rounded-xl text-xs font-medium bg-[#8B5CF6] text-white hover:bg-[#7C3AED] transition-colors">
+              <div className="px-5 py-3 border-t border-[#F1F1F4] bg-white flex justify-between items-center flex-shrink-0">
+                <p className="text-[10px] text-[#9CA3AF]">Clique em cada seção para expandir</p>
+                <button onClick={() => setShowRegras(false)} className="h-8 px-5 rounded-xl text-xs font-semibold bg-[#8B5CF6] text-white hover:bg-[#7C3AED] transition-colors">
                   Fechar
                 </button>
               </div>
