@@ -205,37 +205,69 @@ export default function TreinamentoIA() {
 
   // Consolida conhecimento ACUMULANDO, nunca substituindo detalhes anteriores
   async function consolidarConhecimento(historicoAtualizado, baseAtual) {
-    const todasMensagens = historicoAtualizado
-      .map(m => {
-        const role = m.role === "user" ? "ENGENHEIRO (fonte primária de conhecimento técnico)" : "IA (confirmação/entendimento)";
-        return `[${role}]:\n${m.content}`;
-      })
+    // Separa mensagens do engenheiro (fonte primária) das respostas da IA (confirmações)
+    const mensagensEngenheiro = historicoAtualizado
+      .filter(m => m.role === "user")
+      .map((m, i) => `[REGRA ${i + 1} — ENGENHEIRO]:\n${m.content}`)
       .join("\n\n---\n\n");
 
-    const prompt = `Você é um sistema de extração de conhecimento técnico para formas de pré-moldados de concreto.
+    const mensagensIA = historicoAtualizado
+      .filter(m => m.role === "assistant")
+      .map((m, i) => `[CONFIRMAÇÃO ${i + 1} — IA]:\n${m.content}`)
+      .join("\n\n---\n\n");
 
-IMPORTANTE: As mensagens do ENGENHEIRO contêm o conhecimento técnico REAL e devem ser transcritas integralmente. As mensagens da IA são apenas confirmações — servem para validar o entendimento, mas não substituem o que o engenheiro disse.
+    // Detecta correções: mensagens do engenheiro que contenham palavras de correção
+    const palavrasCorrecao = ["errado", "incorreto", "não é", "correto é", "corrija", "mude", "altere", "na verdade", "não são", "deveria ser"];
+    const correcoes = historicoAtualizado
+      .filter(m => m.role === "user" && palavrasCorrecao.some(p => m.content.toLowerCase().includes(p)))
+      .map(m => `⚠️ CORREÇÃO DETECTADA: "${m.content}"`)
+      .join("\n");
 
-BASE DE CONHECIMENTO ANTERIOR (NUNCA APAGUE OU SIMPLIFIQUE — apenas adicione e corrija):
-${baseAtual || "Nenhuma base ainda."}
+    const prompt = `Você é um sistema especializado em extrair e preservar conhecimento técnico de engenharia estrutural para formas de pré-moldados de concreto.
 
-CONVERSA COMPLETA DE TREINAMENTO:
-${todasMensagens}
+═══════════════════════════════════════════
+BASE DE CONHECIMENTO ATUAL (IMUTÁVEL — nunca apague, resuma ou altere — somente adicione ou aplique correções explícitas do engenheiro):
+═══════════════════════════════════════════
+${baseAtual || "Nenhuma base registrada ainda."}
 
-TAREFA: Gere uma BASE DE CONHECIMENTO TÉCNICO COMPLETA E DETALHADA extraindo tudo acima.
+═══════════════════════════════════════════
+NOVAS INSTRUÇÕES DO ENGENHEIRO (FONTE DE VERDADE — transcreva literalmente):
+═══════════════════════════════════════════
+${mensagensEngenheiro || "Nenhuma mensagem nova do engenheiro."}
 
-REGRAS OBRIGATÓRIAS:
-- As explicações do ENGENHEIRO têm prioridade máxima — copie cada detalhe textualmente quando necessário
-- NUNCA remova, resuma ou simplifique informações da base anterior — apenas adicione e corrija
-- Preserve TODOS os valores numéricos exatos (medidas em cm, quantidades, espessuras, folgas)
-- Preserve TODAS as fórmulas e cálculos ensinados pelo engenheiro
-- Preserve TODOS os casos especiais, exceções, regras de montagem e sequência
-- Preserve TODOS os nomes de componentes exatamente como o engenheiro usou
-- Se o engenheiro corrigiu um valor, registre a correção e descarte o valor errado anterior
-- Organize por seções: Identificação do Elemento, Dimensões de Concreto, Compensado, Sarrafos Verticais, Sarrafos de Acabamento, Insertos/Especiais, Regras de Folga e Montagem
+═══════════════════════════════════════════
+CONFIRMAÇÕES DA IA (use apenas para validar entendimento, não como fonte técnica):
+═══════════════════════════════════════════
+${mensagensIA || "Nenhuma confirmação."}
 
-Seja EXTREMAMENTE detalhado e literal — copie trechos do engenheiro quando contiverem regras técnicas específicas.
-Responda APENAS com a base de conhecimento técnico atualizada, sem introdução.`;
+${correcoes ? `═══════════════════════════════════════════\nCORREÇÕES EXPLÍCITAS DETECTADAS (aplique imediatamente, descarte o valor anterior):\n═══════════════════════════════════════════\n${correcoes}` : ""}
+
+═══════════════════════════════════════════
+TAREFA: Atualize a base de conhecimento técnico seguindo estas regras:
+═══════════════════════════════════════════
+
+PRIORIDADES:
+1. Correções explícitas do engenheiro SEMPRE substituem valores anteriores
+2. Novas instruções do engenheiro são adicionadas literalmente, sem parafrasear
+3. A base anterior é preservada integralmente onde não houver correção
+
+ESTRUTURA OBRIGATÓRIA DA BASE (mantenha estas seções sempre que houver dados):
+## IDENTIFICAÇÃO DO PRODUTO
+## DIMENSÕES PRINCIPAIS (X = altura, Y = largura — valores em cm)
+## COMPENSADO (dimensões, quantidade, regras de corte)
+## SARRAFOS VERTICAIS (dimensões, quantidade, regras de emenda, folgas)
+## SARRAFOS DE ACABAMENTO (dimensões, quantidade, posicionamento)
+## INSERTOS E ESPECIAIS (chumbadores, caixas, ancoragens)
+## REGRAS DE FOLGA E MONTAGEM (condicionais, exceções, sequência)
+## CORREÇÕES APLICADAS (histórico de mudanças para rastreabilidade)
+
+REGRAS CRÍTICAS:
+- Copie textualmente qualquer fórmula ou regra condicional do engenheiro (ex: "se X > 300cm, então...")
+- Preserve todos os valores numéricos com suas unidades (cm, mm, peças, kg)
+- Registre cada correção aplicada na seção "CORREÇÕES APLICADAS" com o valor antigo e o novo
+- NUNCA invente valores — se não souber, não escreva
+
+Responda APENAS com a base de conhecimento técnico atualizada e estruturada, sem texto introdutório.`;
 
     const resposta = await base44.integrations.Core.InvokeLLM({
       prompt,
