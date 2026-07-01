@@ -206,29 +206,35 @@ export default function TreinamentoIA() {
   // Consolida conhecimento ACUMULANDO, nunca substituindo detalhes anteriores
   async function consolidarConhecimento(historicoAtualizado, baseAtual) {
     const todasMensagens = historicoAtualizado
-      .map(m => `${m.role === "user" ? "ENGENHEIRO" : "IA"}: ${m.content}`)
-      .join("\n\n");
+      .map(m => {
+        const role = m.role === "user" ? "ENGENHEIRO (fonte primária de conhecimento técnico)" : "IA (confirmação/entendimento)";
+        return `[${role}]:\n${m.content}`;
+      })
+      .join("\n\n---\n\n");
 
-    const prompt = `Você é um sistema de extração de conhecimento técnico para formas de pré-moldados.
+    const prompt = `Você é um sistema de extração de conhecimento técnico para formas de pré-moldados de concreto.
 
-BASE DE CONHECIMENTO ANTERIOR (NÃO PERCA NENHUM DETALHE DESTA BASE):
+IMPORTANTE: As mensagens do ENGENHEIRO contêm o conhecimento técnico REAL e devem ser transcritas integralmente. As mensagens da IA são apenas confirmações — servem para validar o entendimento, mas não substituem o que o engenheiro disse.
+
+BASE DE CONHECIMENTO ANTERIOR (NUNCA APAGUE OU SIMPLIFIQUE — apenas adicione e corrija):
 ${baseAtual || "Nenhuma base ainda."}
 
 CONVERSA COMPLETA DE TREINAMENTO:
 ${todasMensagens}
 
-TAREFA: Gere uma BASE DE CONHECIMENTO TÉCNICO COMPLETA E DETALHADA, incorporando TUDO da base anterior + tudo aprendido na conversa acima.
+TAREFA: Gere uma BASE DE CONHECIMENTO TÉCNICO COMPLETA E DETALHADA extraindo tudo acima.
 
 REGRAS OBRIGATÓRIAS:
-- NUNCA remova ou simplifique informações da base anterior — apenas adicione e corrija
-- Preserve TODOS os valores numéricos exatos (medidas em cm, quantidades, espessuras)
-- Preserve TODAS as fórmulas e cálculos ensinados
-- Preserve TODOS os casos especiais, exceções e regras de folga
-- Preserve TODOS os nomes de componentes exatamente como foram ensinados
-- Se o engenheiro corrigiu um valor, registre a correção E a regra geral
-- Organize por seções: Identificação do Elemento, Dimensões de Concreto, Compensado, Sarrafos, Casos Especiais, Regras de Folga
+- As explicações do ENGENHEIRO têm prioridade máxima — copie cada detalhe textualmente quando necessário
+- NUNCA remova, resuma ou simplifique informações da base anterior — apenas adicione e corrija
+- Preserve TODOS os valores numéricos exatos (medidas em cm, quantidades, espessuras, folgas)
+- Preserve TODAS as fórmulas e cálculos ensinados pelo engenheiro
+- Preserve TODOS os casos especiais, exceções, regras de montagem e sequência
+- Preserve TODOS os nomes de componentes exatamente como o engenheiro usou
+- Se o engenheiro corrigiu um valor, registre a correção e descarte o valor errado anterior
+- Organize por seções: Identificação do Elemento, Dimensões de Concreto, Compensado, Sarrafos Verticais, Sarrafos de Acabamento, Insertos/Especiais, Regras de Folga e Montagem
 
-Seja EXTREMAMENTE detalhado — quanto mais detalhe, melhor a geração de listas de corte.
+Seja EXTREMAMENTE detalhado e literal — copie trechos do engenheiro quando contiverem regras técnicas específicas.
 Responda APENAS com a base de conhecimento técnico atualizada, sem introdução.`;
 
     const resposta = await base44.integrations.Core.InvokeLLM({
