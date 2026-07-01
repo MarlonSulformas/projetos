@@ -3,7 +3,6 @@ import WelcomeHeader from "@/components/dashboard/WelcomeHeader";
 import Viewer3DPlaceholder from "@/components/dashboard/Viewer3DPlaceholder";
 import MetricCards from "@/components/dashboard/MetricCards";
 import StatusPanel from "@/components/dashboard/StatusPanel";
-import RegrasPorProduto from "@/components/dashboard/RegrasPorProduto";
 
 export default function Home() {
   return (
@@ -18,9 +17,6 @@ export default function Home() {
 
       {/* Bottom panel */}
       <StatusPanel />
-
-      {/* Regras por produto */}
-      <RegrasPorProduto />
     </div>
   );
 }
