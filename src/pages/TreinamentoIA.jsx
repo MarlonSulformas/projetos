@@ -205,13 +205,16 @@ export default function TreinamentoIA() {
 
   // Consolida conhecimento ACUMULANDO, nunca substituindo detalhes anteriores
   async function consolidarConhecimento(historicoAtualizado, baseAtual) {
+    // Usa apenas as últimas 10 mensagens para evitar sobrecarga (a base_conhecimento já tem o resto)
+    const historicoRecortado = historicoAtualizado.slice(-10);
+
     // Separa mensagens do engenheiro (fonte primária) das respostas da IA (confirmações)
-    const mensagensEngenheiro = historicoAtualizado
+    const mensagensEngenheiro = historicoRecortado
       .filter(m => m.role === "user")
       .map((m, i) => `[REGRA ${i + 1} — ENGENHEIRO]:\n${m.content}`)
       .join("\n\n---\n\n");
 
-    const mensagensIA = historicoAtualizado
+    const mensagensIA = historicoRecortado
       .filter(m => m.role === "assistant")
       .map((m, i) => `[CONFIRMAÇÃO ${i + 1} — IA]:\n${m.content}`)
       .join("\n\n---\n\n");
@@ -348,9 +351,16 @@ Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, con
       const novoStatus = totalExemplos === 0 ? "iniciando" : totalExemplos < 3 ? "em_treinamento" : "treinado";
       const urlHistorico = await salvarHistorico(historicoAtualizado);
 
-      // Consolidar conhecimento a cada mensagem da IA (sempre atualizado)
+      // Consolidar conhecimento a cada 2 trocas (evita sobrecarga) ou se for a primeira mensagem
+      const totalRespostasIA = historicoAtualizado.filter(m => m.role === "assistant").length;
       let novaBase = agente.base_conhecimento || "";
-      novaBase = await consolidarConhecimento(historicoAtualizado, novaBase);
+      if (totalRespostasIA === 1 || totalRespostasIA % 2 === 0) {
+        try {
+          novaBase = await consolidarConhecimento(historicoAtualizado, novaBase);
+        } catch (e) {
+          console.warn("Aviso: consolidação adiada para próxima mensagem:", e.message);
+        }
+      }
 
       await base44.entities.AgenteIA.update(agente.id, {
         historico_conversa: urlHistorico,
