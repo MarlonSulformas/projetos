@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Upload, Send, Bot, User, Trash2, CheckCircle, BookOpen, FileText, Loader2 } from "lucide-react";
+import { ArrowLeft, Upload, Send, Bot, User, Trash2, CheckCircle, BookOpen, FileText, Loader2, ScrollText, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
 import { db } from "@/lib/supabaseClient";
@@ -119,6 +119,7 @@ export default function TreinamentoIA() {
   const [enviando, setEnviando] = useState(false);
   const [loadingAgente, setLoadingAgente] = useState(false);
   const [anexos, setAnexos] = useState([]); // [{ file, nome, fileUrl, totalPages }]
+  const [showRegras, setShowRegras] = useState(false);
   const fileInputRef = useRef(null);
   const MAX_ANEXOS = 5;
   const chatEndRef = useRef(null);
@@ -417,8 +418,104 @@ Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, con
   };
   const status = statusInfo[agente?.status_treinamento || "iniciando"];
 
+  // Extrai blocos de regras/seções da base_conhecimento para exibição
+  function parseBaseConhecimento(base) {
+    if (!base) return [];
+    const sections = [];
+    const lines = base.split("\n");
+    let current = null;
+    for (const line of lines) {
+      if (line.startsWith("## ")) {
+        if (current) sections.push(current);
+        current = { titulo: line.replace("## ", "").trim(), conteudo: [] };
+      } else if (current && line.trim()) {
+        current.conteudo.push(line.trim());
+      }
+    }
+    if (current) sections.push(current);
+    // Fallback: se não houver seções ##, retorna o texto bruto em blocos por linha em branco
+    if (sections.length === 0 && base.trim()) {
+      return [{ titulo: "Base de Conhecimento", conteudo: base.split("\n").filter(l => l.trim()) }];
+    }
+    return sections;
+  }
+
   return (
     <div className="flex flex-col" style={{ height: "100%", overflow: "hidden" }}>
+
+      {/* Modal: Base de Conhecimento */}
+      <AnimatePresence>
+        {showRegras && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4"
+            onClick={() => setShowRegras(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.15 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header do modal */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-[#F1F1F4]">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-[#EDE9FE] flex items-center justify-center">
+                    <ScrollText className="w-3.5 h-3.5 text-[#8B5CF6]" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-[#0F0F0F]">Base de Conhecimento</p>
+                    <p className="text-[10px] text-[#9CA3AF]">{selectedProduto?.nome} — regras aprendidas pelo agente</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowRegras(false)} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#9CA3AF] hover:bg-[#F1F1F4] hover:text-[#374151] transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Conteúdo */}
+              <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
+                {!agente?.base_conhecimento ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
+                    <div className="w-12 h-12 rounded-xl bg-[#F1F1F4] flex items-center justify-center">
+                      <BookOpen className="w-6 h-6 text-[#D1D5DB]" />
+                    </div>
+                    <p className="text-sm text-[#6B7280]">Nenhuma regra aprendida ainda.</p>
+                    <p className="text-xs text-[#9CA3AF]">Converse com o agente para ele aprender as regras do produto.</p>
+                  </div>
+                ) : (
+                  parseBaseConhecimento(agente.base_conhecimento).map((section, i) => (
+                    <div key={i} className="bg-[#FAFAFA] border border-[#E5E5E8] rounded-xl overflow-hidden">
+                      <div className="flex items-center gap-2 px-4 py-2.5 bg-[#F1F1F4] border-b border-[#E5E5E8]">
+                        <div className="w-5 h-5 rounded-md bg-[#8B5CF6] flex items-center justify-center flex-shrink-0">
+                          <span className="text-[9px] font-bold text-white">{i + 1}</span>
+                        </div>
+                        <span className="text-xs font-semibold text-[#1F1F24]">{section.titulo}</span>
+                      </div>
+                      <div className="px-4 py-3 flex flex-col gap-1">
+                        {section.conteudo.map((linha, j) => (
+                          <p key={j} className="text-[11px] text-[#374151] leading-relaxed font-mono whitespace-pre-wrap">{linha}</p>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-5 py-3 border-t border-[#F1F1F4] bg-[#FAFAFA] flex justify-end">
+                <button onClick={() => setShowRegras(false)} className="h-8 px-4 rounded-xl text-xs font-medium bg-[#8B5CF6] text-white hover:bg-[#7C3AED] transition-colors">
+                  Fechar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Header */}
       <motion.div
@@ -522,6 +619,14 @@ Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, con
                   <span className="text-[10px] text-[#15803D] font-medium">Base de conhecimento salva</span>
                 </div>
               )}
+
+              <button
+                onClick={() => setShowRegras(true)}
+                className="flex items-center gap-1.5 text-[10px] text-[#8B5CF6] hover:text-purple-700 mt-1 font-medium"
+              >
+                <ScrollText className="w-3 h-3" />
+                Ver base de conhecimento
+              </button>
 
               <button
                 onClick={handleLimparHistorico}
