@@ -1,27 +1,38 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Download, Copy, CheckCheck, MessageSquare } from "lucide-react";
+import { X, Download, Copy, CheckCheck, MessageSquare, BookOpen } from "lucide-react";
 
-export default function ExportarInstrucoesModal({ mensagens, nomeProduto, onClose }) {
+export default function ExportarInstrucoesModal({ mensagens, baseConhecimento, nomeProduto, onClose }) {
   const [copiado, setCopiado] = useState(false);
+  const [aba, setAba] = useState("instrucoes"); // "instrucoes" | "base"
 
-  // Filtra apenas as mensagens do engenheiro (usuário)
-  const instrucoes = mensagens.filter(m => m.role === "user");
+  // Filtra apenas as mensagens do engenheiro (usuário) do histórico atual
+  const instrucoes = (mensagens || []).filter(m => m.role === "user");
 
-  const textoExportado = instrucoes
-    .map((m, i) => `[Instrução ${i + 1}]\n${m.content}`)
-    .join("\n\n---\n\n");
+  const textoInstrucoes = instrucoes.length > 0
+    ? instrucoes.map((m, i) => `[Instrução ${i + 1}]\n${m.content}`).join("\n\n---\n\n")
+    : "(Nenhuma instrução no histórico atual — históricos anteriores já foram consolidados na Base de Conhecimento abaixo)";
 
-  const textoCompleto = `INSTRUÇÕES DE TREINAMENTO — ${nomeProduto}
+  const textoBase = baseConhecimento || "(Base de conhecimento ainda não gerada)";
+
+  const textoCompleto = `BACKUP DE TREINAMENTO — ${nomeProduto}
 Exportado em: ${new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-Total de instruções: ${instrucoes.length}
 
 ${"=".repeat(60)}
+PARTE 1 — INSTRUÇÕES DO HISTÓRICO ATUAL (${instrucoes.length} mensagens)
+${"=".repeat(60)}
 
-${textoExportado}`;
+${textoInstrucoes}
+
+${"=".repeat(60)}
+PARTE 2 — BASE DE CONHECIMENTO CONSOLIDADA (fonte principal)
+${"=".repeat(60)}
+
+${textoBase}`;
 
   function handleCopiar() {
-    navigator.clipboard.writeText(textoCompleto);
+    const texto = aba === "instrucoes" ? textoInstrucoes : textoBase;
+    navigator.clipboard.writeText(texto);
     setCopiado(true);
     setTimeout(() => setCopiado(false), 2500);
   }
@@ -31,7 +42,7 @@ ${textoExportado}`;
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `instrucoes_${nomeProduto?.replace(/\s+/g, "_").toLowerCase()}_${Date.now()}.txt`;
+    a.download = `backup_treinamento_${nomeProduto?.replace(/\s+/g, "_").toLowerCase()}_${Date.now()}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -59,11 +70,11 @@ ${textoExportado}`;
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-                  <MessageSquare className="w-5 h-5 text-white" />
+                  <Download className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <p className="text-base font-bold text-white">Instruções de Treinamento</p>
-                  <p className="text-[11px] text-white/60 mt-0.5">{nomeProduto} · {instrucoes.length} instrução{instrucoes.length !== 1 ? "ões" : ""}</p>
+                  <p className="text-base font-bold text-white">Backup de Treinamento</p>
+                  <p className="text-[11px] text-white/60 mt-0.5">{nomeProduto}</p>
                 </div>
               </div>
               <button onClick={onClose} className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors">
@@ -71,58 +82,92 @@ ${textoExportado}`;
               </button>
             </div>
             <p className="text-[11px] text-white/50 mt-3">
-              Salve estas instruções antes de zerar o sistema. Elas contêm tudo que você ensinou ao agente sobre este produto.
+              Salve antes de zerar. A <strong className="text-white/80">Base de Conhecimento</strong> é a fonte mais completa — ela contém todo o histórico consolidado, inclusive de sessões anteriores.
             </p>
+
+            {/* Abas */}
+            <div className="flex gap-1 mt-4">
+              <button
+                onClick={() => setAba("instrucoes")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${aba === "instrucoes" ? "bg-white text-[#1F1F24]" : "text-white/60 hover:text-white hover:bg-white/10"}`}
+              >
+                <MessageSquare className="w-3 h-3" />
+                Histórico atual ({instrucoes.length})
+              </button>
+              <button
+                onClick={() => setAba("base")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${aba === "base" ? "bg-white text-[#1F1F24]" : "text-white/60 hover:text-white hover:bg-white/10"}`}
+              >
+                <BookOpen className="w-3 h-3" />
+                Base consolidada ✦
+              </button>
+            </div>
           </div>
 
-          {/* Lista de instruções */}
+          {/* Conteúdo */}
           <div className="flex-1 overflow-y-auto bg-[#F8F9FB]">
-            {instrucoes.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-6">
-                <div className="w-12 h-12 rounded-2xl bg-[#F1F1F4] flex items-center justify-center">
-                  <MessageSquare className="w-6 h-6 text-[#D1D5DB]" />
-                </div>
-                <p className="text-sm font-semibold text-[#6B7280]">Nenhuma instrução enviada ainda.</p>
-              </div>
-            ) : (
+            {aba === "instrucoes" && (
               <div className="p-4 flex flex-col gap-2">
-                {instrucoes.map((m, i) => (
-                  <div key={i} className="bg-white border border-[#E5E5E8] rounded-xl p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider">Instrução {i + 1}</span>
-                      {m.pdfNome && (
-                        <span className="text-[10px] bg-[#EFF6FF] text-[#3B82F6] border border-[#BFDBFE] rounded-md px-1.5 py-0.5 font-medium">
-                          📎 {m.pdfNome}
-                        </span>
-                      )}
+                {instrucoes.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-3 text-center px-6">
+                    <div className="w-12 h-12 rounded-2xl bg-[#F1F1F4] flex items-center justify-center">
+                      <MessageSquare className="w-6 h-6 text-[#D1D5DB]" />
                     </div>
-                    <p className="text-xs text-[#374151] leading-relaxed whitespace-pre-wrap">{m.content}</p>
-                    <p className="text-[9px] text-[#9CA3AF] mt-2">
-                      {new Date(m.timestamp).toLocaleString("pt-BR")}
-                    </p>
+                    <p className="text-sm font-semibold text-[#6B7280]">Nenhuma instrução no histórico atual.</p>
+                    <p className="text-xs text-[#9CA3AF]">Veja a aba "Base consolidada" — ela contém todo o conhecimento acumulado, incluindo sessões anteriores.</p>
                   </div>
-                ))}
+                ) : (
+                  instrucoes.map((m, i) => (
+                    <div key={i} className="bg-white border border-[#E5E5E8] rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider">Instrução {i + 1}</span>
+                        {m.pdfNome && (
+                          <span className="text-[10px] bg-[#EFF6FF] text-[#3B82F6] border border-[#BFDBFE] rounded-md px-1.5 py-0.5 font-medium">
+                            📎 {m.pdfNome}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-[#374151] leading-relaxed whitespace-pre-wrap">{m.content}</p>
+                      <p className="text-[9px] text-[#9CA3AF] mt-2">{new Date(m.timestamp).toLocaleString("pt-BR")}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {aba === "base" && (
+              <div className="p-4">
+                {!baseConhecimento ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-3 text-center px-6">
+                    <div className="w-12 h-12 rounded-2xl bg-[#F1F1F4] flex items-center justify-center">
+                      <BookOpen className="w-6 h-6 text-[#D1D5DB]" />
+                    </div>
+                    <p className="text-sm font-semibold text-[#6B7280]">Base de conhecimento ainda vazia.</p>
+                  </div>
+                ) : (
+                  <pre className="text-xs text-[#374151] leading-relaxed whitespace-pre-wrap font-mono bg-white border border-[#E5E5E8] rounded-xl p-4">
+                    {baseConhecimento}
+                  </pre>
+                )}
               </div>
             )}
           </div>
 
-          {/* Footer com ações */}
+          {/* Footer */}
           <div className="px-5 py-3 border-t border-[#F1F1F4] bg-white flex items-center gap-2 flex-shrink-0">
             <button
               onClick={handleCopiar}
-              disabled={instrucoes.length === 0}
-              className="flex-1 h-9 rounded-xl text-xs font-semibold border border-[#E5E5E8] text-[#374151] hover:bg-[#F1F1F4] transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40"
+              className="flex-1 h-9 rounded-xl text-xs font-semibold border border-[#E5E5E8] text-[#374151] hover:bg-[#F1F1F4] transition-colors flex items-center justify-center gap-1.5"
             >
               {copiado ? <CheckCheck className="w-3.5 h-3.5 text-[#22C55E]" /> : <Copy className="w-3.5 h-3.5" />}
-              {copiado ? "Copiado!" : "Copiar tudo"}
+              {copiado ? "Copiado!" : "Copiar aba atual"}
             </button>
             <button
               onClick={handleDownload}
-              disabled={instrucoes.length === 0}
-              className="flex-1 h-9 rounded-xl text-xs font-semibold bg-[#1F1F24] text-white hover:bg-[#374151] transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40"
+              className="flex-1 h-9 rounded-xl text-xs font-semibold bg-[#1F1F24] text-white hover:bg-[#374151] transition-colors flex items-center justify-center gap-1.5"
             >
               <Download className="w-3.5 h-3.5" />
-              Baixar .txt
+              Baixar tudo (.txt)
             </button>
             <button onClick={onClose} className="h-9 px-4 rounded-xl text-xs font-medium text-[#9CA3AF] hover:text-[#374151] transition-colors">
               Fechar

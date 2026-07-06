@@ -482,6 +482,7 @@ Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, con
       {showExportar && (
         <ExportarInstrucoesModal
           mensagens={mensagens}
+          baseConhecimento={agente?.base_conhecimento}
           nomeProduto={selectedProduto?.nome}
           onClose={() => setShowExportar(false)}
         />
