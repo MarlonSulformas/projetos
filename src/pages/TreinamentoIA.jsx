@@ -276,7 +276,7 @@ Responda APENAS com a base de conhecimento técnico atualizada e estruturada, se
 
     const resposta = await base44.integrations.Core.InvokeLLM({
       prompt,
-      model: "gemini_3_flash",
+      model: "claude_sonnet_4_6",
     });
 
     return typeof resposta === "string" ? resposta : JSON.stringify(resposta);
