@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Upload, Send, Bot, User, Trash2, CheckCircle, BookOpen, FileText, Loader2, ScrollText, X } from "lucide-react";
+import { ArrowLeft, Upload, Send, Bot, User, Trash2, CheckCircle, BookOpen, FileText, Loader2, ScrollText, X, FolderDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
 import { db } from "@/lib/supabaseClient";
 import { salvarHistorico, carregarHistorico } from "@/lib/historicoStorage";
 import * as pdfjsLib from "pdfjs-dist";
 import KnowledgeSections from "@/components/treinamento/KnowledgeSections";
+import ExportarInstrucoesModal from "@/components/treinamento/ExportarInstrucoesModal";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
@@ -121,6 +122,7 @@ export default function TreinamentoIA() {
   const [loadingAgente, setLoadingAgente] = useState(false);
   const [anexos, setAnexos] = useState([]); // [{ file, nome, fileUrl, totalPages }]
   const [showRegras, setShowRegras] = useState(false);
+  const [showExportar, setShowExportar] = useState(false);
   const fileInputRef = useRef(null);
   const MAX_ANEXOS = 5;
   const chatEndRef = useRef(null);
@@ -476,6 +478,15 @@ Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, con
   return (
     <div className="flex flex-col" style={{ height: "100%", overflow: "hidden" }}>
 
+      {/* Modal: Exportar Instruções */}
+      {showExportar && (
+        <ExportarInstrucoesModal
+          mensagens={mensagens}
+          nomeProduto={selectedProduto?.nome}
+          onClose={() => setShowExportar(false)}
+        />
+      )}
+
       {/* Modal: Base de Conhecimento */}
       <AnimatePresence>
         {showRegras && (
@@ -664,6 +675,14 @@ Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, con
               >
                 <ScrollText className="w-3 h-3" />
                 Ver base de conhecimento
+              </button>
+
+              <button
+                onClick={() => setShowExportar(true)}
+                className="flex items-center gap-1.5 text-[10px] text-[#374151] hover:text-[#1F1F24] mt-1 font-medium"
+              >
+                <FolderDown className="w-3 h-3" />
+                Exportar minhas instruções
               </button>
 
               <button
