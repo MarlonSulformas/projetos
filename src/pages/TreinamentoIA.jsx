@@ -336,11 +336,18 @@ ${anexosAtuais.length > 0 ? "O engenheiro enviou imagem(ns) da prancha técnica 
 Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, confirme que entendeu e incorpore a correção.`;
 
       const fileUrls = anexosAtuais.map(a => a.fileUrl).filter(Boolean);
-      const response = await base44.integrations.Core.InvokeLLM({
-        prompt: promptBase,
-        model: "gemini_3_flash",
-        file_urls: fileUrls.length > 0 ? fileUrls : undefined,
-      });
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Tempo limite atingido (60s). Tente novamente.")), 60000)
+      );
+
+      const response = await Promise.race([
+        base44.integrations.Core.InvokeLLM({
+          prompt: promptBase,
+          model: "gemini_3_flash",
+          file_urls: fileUrls.length > 0 ? fileUrls : undefined,
+        }),
+        timeoutPromise,
+      ]);
 
       const msgIA = {
         role: "assistant",
@@ -355,25 +362,25 @@ Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, con
       const novoStatus = totalExemplos === 0 ? "iniciando" : totalExemplos < 3 ? "em_treinamento" : "treinado";
       const urlHistorico = await salvarHistorico(historicoAtualizado);
 
-      // Consolidar conhecimento a cada 2 trocas (evita sobrecarga) ou se for a primeira mensagem
-      const totalRespostasIA = historicoAtualizado.filter(m => m.role === "assistant").length;
-      let novaBase = agente.base_conhecimento || "";
-      if (totalRespostasIA === 1 || totalRespostasIA % 2 === 0) {
-        try {
-          novaBase = await consolidarConhecimento(historicoAtualizado, novaBase);
-        } catch (e) {
-          console.warn("Aviso: consolidação adiada para próxima mensagem:", e.message);
-        }
-      }
-
+      // Salva histórico e status imediatamente (sem bloquear na consolidação)
       await base44.entities.AgenteIA.update(agente.id, {
         historico_conversa: urlHistorico,
         total_exemplos: totalExemplos,
         status_treinamento: novoStatus,
-        base_conhecimento: novaBase,
       });
 
-      setAgente(ag => ({ ...ag, total_exemplos: totalExemplos, status_treinamento: novoStatus, base_conhecimento: novaBase }));
+      setAgente(ag => ({ ...ag, total_exemplos: totalExemplos, status_treinamento: novoStatus }));
+
+      // Consolidação com Claude roda em background (não bloqueia a UI)
+      const totalRespostasIA = historicoAtualizado.filter(m => m.role === "assistant").length;
+      if (totalRespostasIA === 1 || totalRespostasIA % 2 === 0) {
+        consolidarConhecimento(historicoAtualizado, agente.base_conhecimento || "")
+          .then(async (novaBase) => {
+            await base44.entities.AgenteIA.update(agente.id, { base_conhecimento: novaBase });
+            setAgente(ag => ({ ...ag, base_conhecimento: novaBase }));
+          })
+          .catch(e => console.warn("Consolidação em background falhou:", e.message));
+      }
     } catch (e) {
       const msgErro = {
         role: "assistant",
