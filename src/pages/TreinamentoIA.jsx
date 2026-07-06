@@ -319,25 +319,20 @@ Responda APENAS com a base de conhecimento técnico atualizada e estruturada, se
         texto: m.content,
       }));
 
-      const promptBase = `Você é um assistente especializado em engenharia estrutural de pré-moldados.
-
-PRODUTO: ${selectedProduto?.nome}
-
-${baseConhecimento ? `BASE DE CONHECIMENTO TÉCNICO CONSOLIDADA (regras aprendidas anteriormente — use sempre):
-${baseConhecimento}
-
-` : ""}HISTÓRICO RECENTE DA CONVERSA:
+      const temAnexo = anexosAtuais.length > 0;
+      const promptBase = temAnexo
+        ? `Produto: ${selectedProduto?.nome}. Analise a imagem da prancha técnica e extraia as dimensões principais do elemento estrutural (altura X e largura Y em cm). Liste os valores encontrados de forma objetiva e pergunte se estão corretos. Seja breve.`
+        : `Produto: ${selectedProduto?.nome}.
+${baseConhecimento ? `Regras aprendidas:\n${baseConhecimento.slice(0, 1500)}\n` : ""}Histórico recente:
 ${historicoRecente.map(h => `${h.role}: ${h.texto}`).join("\n")}
 
-NOVA MENSAGEM DO ENGENHEIRO: ${msgUsuario.content}
+Engenheiro: ${msgUsuario.content}
 
-${anexosAtuais.length > 0 ? "O engenheiro enviou imagem(ns) da prancha técnica para análise. Analise as imagens e extraia as dimensões principais (altura X e largura Y em cm) do elemento estrutural. Apresente sua resposta de forma clara com os valores encontrados e pergunte se estão corretos." : ""}
-
-Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, confirme que entendeu e incorpore a correção.`;
+Responda de forma objetiva e técnica em até 3 parágrafos.`;
 
       const fileUrls = anexosAtuais.map(a => a.fileUrl).filter(Boolean);
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Tempo limite atingido (60s). Tente novamente.")), 60000)
+        setTimeout(() => reject(new Error("Tempo limite atingido (45s). Tente novamente com menos anexos.")), 45000)
       );
 
       const response = await Promise.race([
@@ -345,6 +340,7 @@ Responda de forma objetiva e técnica. Se o engenheiro corrigir algum valor, con
           prompt: promptBase,
           model: "gemini_3_flash",
           file_urls: fileUrls.length > 0 ? fileUrls : undefined,
+          add_context_from_internet: false,
         }),
         timeoutPromise,
       ]);
