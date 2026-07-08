@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Upload, Send, Bot, User, Trash2, CheckCircle, BookOpen, FileText, Loader2, ScrollText, X, FolderDown } from "lucide-react";
+import { ArrowLeft, Upload, Send, Bot, User, Trash2, CheckCircle, BookOpen, FileText, Loader2, ScrollText, X, FolderDown, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
 import { db } from "@/lib/supabaseClient";
@@ -417,6 +417,55 @@ Responda de forma objetiva e técnica em até 3 parágrafos.`;
     setAgente(ag => ({ ...ag, base_conhecimento: baseAtualizada }));
   }
 
+  // Reiniciar treinamento: zera TUDO (base de conhecimento + histórico + exemplos)
+  async function handleReiniciarTreinamento() {
+    if (!agente) return;
+    if (!confirm(`Apagar TODO o treinamento do produto "${selectedProduto?.nome}"?\n\nIsso remove:\n• Base de conhecimento consolidada\n• Histórico de chat\n• Contagem de exemplos e status\n\nAÇÃO IRREVERSÍVEL. Recomendamos exportar o backup antes.`)) return;
+
+    const boasVindas = [{
+      role: "assistant",
+      content: `Treinamento reiniciado. ✅\n\nTodo o conhecimento anterior do produto **${selectedProduto?.nome}** foi apagado. Vamos começar do zero — envie um PDF de exemplo e me diga as dimensões corretas (altura X e largura Y em cm).`,
+      timestamp: Date.now(),
+    }];
+
+    const urlHistorico = await salvarHistorico(boasVindas);
+    await base44.entities.AgenteIA.update(agente.id, {
+      historico_conversa: urlHistorico,
+      base_conhecimento: "",
+      total_exemplos: 0,
+      status_treinamento: "iniciando",
+    });
+    setMensagens(boasVindas);
+    setAgente(ag => ({ ...ag, base_conhecimento: "", total_exemplos: 0, status_treinamento: "iniciando" }));
+  }
+
+  // Reconstrói o texto markdown da base a partir das seções parseadas
+  function reconstruirBase(sections) {
+    return sections.map(s => `## ${s.titulo}\n${s.conteudo.join("\n")}`).join("\n\n");
+  }
+
+  // Exclui uma seção inteira da base de conhecimento
+  async function handleExcluirSecao(index) {
+    if (!agente?.base_conhecimento) return;
+    const sections = parseBaseConhecimento(agente.base_conhecimento);
+    sections.splice(index, 1);
+    const novaBase = reconstruirBase(sections);
+    await base44.entities.AgenteIA.update(agente.id, { base_conhecimento: novaBase });
+    setAgente(ag => ({ ...ag, base_conhecimento: novaBase }));
+  }
+
+  // Exclui uma linha/regra específica dentro de uma seção
+  async function handleExcluirLinha(sectionIndex, lineIndex) {
+    if (!agente?.base_conhecimento) return;
+    const sections = parseBaseConhecimento(agente.base_conhecimento);
+    const section = sections[sectionIndex];
+    if (!section) return;
+    section.conteudo.splice(lineIndex, 1);
+    const novaBase = reconstruirBase(sections);
+    await base44.entities.AgenteIA.update(agente.id, { base_conhecimento: novaBase });
+    setAgente(ag => ({ ...ag, base_conhecimento: novaBase }));
+  }
+
   const statusInfo = {
     iniciando:      { label: "Sem exemplos",   color: "#9CA3AF", bg: "#F1F1F4" },
     em_treinamento: { label: "Em treinamento",  color: "#F59E0B", bg: "#FEF3C7" },
@@ -554,13 +603,15 @@ Responda de forma objetiva e técnica em até 3 parágrafos.`;
                   <KnowledgeSections
                     sections={parseBaseConhecimento(agente.base_conhecimento)}
                     renderLinha={renderLinha}
+                    onDeleteSection={handleExcluirSecao}
+                    onDeleteLine={handleExcluirLinha}
                   />
                 )}
               </div>
 
               {/* Footer */}
               <div className="px-5 py-3 border-t border-[#F1F1F4] bg-white flex justify-between items-center flex-shrink-0">
-                <p className="text-[10px] text-[#9CA3AF]">Clique em cada seção para expandir</p>
+                <p className="text-[10px] text-[#9CA3AF]">Passe o mouse sobre uma seção/regra para excluir 🗑️</p>
                 <button onClick={() => setShowRegras(false)} className="h-8 px-5 rounded-xl text-xs font-semibold bg-[#8B5CF6] text-white hover:bg-[#7C3AED] transition-colors">
                   Fechar
                 </button>
@@ -696,6 +747,20 @@ Responda de forma objetiva e técnica em até 3 parágrafos.`;
                 <Trash2 className="w-3 h-3" />
                 Limpar histórico de chat
               </button>
+
+              <div className="h-px bg-[#F1F1F4] my-1" />
+
+              <button
+                onClick={handleReiniciarTreinamento}
+                className="flex items-center gap-1.5 text-[10px] text-[#7C3AED] hover:text-[#5B21B6] font-medium"
+              >
+                <RotateCcw className="w-3 h-3" />
+                Reiniciar treinamento do produto
+              </button>
+
+              <p className="text-[9px] text-[#9CA3AF] leading-relaxed mt-0.5">
+                Zera base de conhecimento, histórico e exemplos. Exporte um backup antes de usar.
+              </p>
             </div>
           )}
 
