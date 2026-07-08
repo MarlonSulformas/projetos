@@ -28,6 +28,13 @@ async function pdfToImagens(file) {
   return imagens;
 }
 
+// ── Utilitários ────────────────────────────────────────────────────────────────
+// Arredonda para 1 casa decimal, remove .0 desnecessário
+function arred(v) {
+  const r = Math.round(v * 10) / 10;
+  return r % 1 === 0 ? r.toFixed(0) : r.toFixed(1);
+}
+
 // ── Cores ──────────────────────────────────────────────────────────────────────
 const COR_TIPO = {
   compensado: "#3B82F6",
@@ -257,36 +264,44 @@ export default function ListaCorte() {
         const img = imagensComUrl[i];
         setProgresso({ atual: i + 1, total: imagensComUrl.length, msg: `Processando página ${i + 1} de ${imagensComUrl.length}...` });
 
-        const prompt = `Você é um engenheiro especializado em pré-moldados. Analise esta prancha técnica estrutural.
+        const prompt = `Você é um leitor técnico de pranchas de engenharia para formas de pré-moldados. Sua ÚNICA função é EXTRAIR números da imagem. Você NÃO CALCULA nada — o sistema de software fará todos os cálculos.
 
-CONTEXTO DE TREINAMENTO (como este produto foi aprendido anteriormente):
+CONTEXTO DO PRODUTO (para entender o que procurar):
 ${resumoTreinamento}
 
-TAREFA: Baseado no aprendizado acima, extraia da imagem desta prancha:
-1. Nome/ID do elemento (ex: P1, Pilar-01, etc.)
-2. Dimensão principal X (altura em cm)
-3. Dimensão principal Y (largura em cm)
-4. Lista de corte de madeira: para cada peça informe componente, quantidade e dimensões
+TAREFA: Extraia APENAS os seguintes dados brutos da prancha, SEM FAZER NENHUMA CONTA:
 
-REGRA CRÍTICA — MOSCA:
-- Se o treinamento mencionar "MOSCA" para algum painel, você DEVE gerar DUAS linhas separadas na lista:
-  a) Uma linha para o Compensado principal, com a altura JÁ DESCONTADA (altura_bruta − espessura_compensado). Coloque no campo "obs" a nota "(altura descontada p/ mosca)".
-  b) Uma linha separada com o nome "Mosca", quantidade conforme o projeto, e as dimensões da mosca (ex: "16 x 95 cm"). Campo "obs" deve indicar em qual painel ela é fixada (ex: "fixada em P6A3").
-- A mosca é uma PEÇA FÍSICA que vai para a lista de corte, não apenas uma anotação.
+1. "nome": nome/ID do elemento (ex: "P10=P26", "P11")
+2. "x_cm": a MAIOR medida de altura do painel em cm (medida bruta total — NÃO desconte recorte nem mosca)
+3. "y_cm": a largura total do painel em cm (medida bruta total)
+4. "paineis": lista de painéis/faces do elemento. Para cada painel extraia:
+   - "id": identificador do painel (ex: "A", "B", "C", "D")
+   - "altura_bruta_cm": a altura TOTAL do painel lida na prancha (SEM descontar nada)
+   - "tem_recorte": true se houver entalhe/recorte físico desenhado na peça
+   - "recorte_cm": valor em cm do recorte (0 se não houver)
+   - "tem_mosca": true se houver "MOSCA" indicada neste painel
+   - "mosca_cm": espessura da MOSCA em cm (0 se não houver)
+   - "largura_cm": largura do painel em cm
 
-Responda SOMENTE em JSON válido neste formato exato:
+REGRAS CRÍTICAS DE LEITURA:
+- "altura_bruta_cm" é SEMPRE a medida maior anotada na prancha para aquele painel, incluindo o recorte
+- Se um painel tem altura total 84cm com recorte de 4cm, extraia altura_bruta_cm=84 e recorte_cm=4. NÃO extraia 80.
+- Se um painel tem altura total 54cm com recorte de 4cm, extraia altura_bruta_cm=54 e recorte_cm=4. NÃO extraia 50.
+- "mosca_cm" é a espessura da tira de madeira da mosca indicada na prancha (ex: 16cm, 18cm, 6cm)
+- NÃO some, subtraia ou calcule nada. Apenas leia e transcreva os números da imagem.
+
+Responda SOMENTE em JSON válido neste formato:
 {
-  "nome": "P1",
-  "x_cm": 324,
-  "y_cm": 19,
-  "linhas": [
-    {"componente": "Compensado P6A3", "quantidade": 1, "dimensoes": "62,5 x 115,4 cm", "obs": "(altura descontada p/ mosca)"},
-    {"componente": "Mosca", "quantidade": 1, "dimensoes": "16 x 95 cm", "obs": "fixada em P6A3"},
-    {"componente": "Sarrafo Vertical", "quantidade": 2, "dimensoes": "319 x 4 cm", "obs": "emenda 200+119cm"}
+  "nome": "P10=P26",
+  "x_cm": 430,
+  "y_cm": 140.4,
+  "paineis": [
+    {"id": "A", "altura_bruta_cm": 80, "tem_recorte": false, "recorte_cm": 0, "tem_mosca": false, "mosca_cm": 0, "largura_cm": 140.4},
+    {"id": "B", "altura_bruta_cm": 84, "tem_recorte": true, "recorte_cm": 4, "tem_mosca": true, "mosca_cm": 16, "largura_cm": 140.4}
   ]
 }
 
-Se não conseguir extrair as dimensões, responda: {"erro": "descrição do problema"}`;
+Se não conseguir ler as dimensões, responda: {"erro": "descrição do problema"}`;
 
         try {
           const response = await base44.integrations.Core.InvokeLLM({
@@ -300,15 +315,18 @@ Se não conseguir extrair as dimensões, responda: {"erro": "descrição do prob
                 x_cm: { type: "number" },
                 y_cm: { type: "number" },
                 erro: { type: "string" },
-                linhas: {
+                paineis: {
                   type: "array",
                   items: {
                     type: "object",
                     properties: {
-                      componente: { type: "string" },
-                      quantidade: { type: "number" },
-                      dimensoes: { type: "string" },
-                      obs: { type: "string" },
+                      id: { type: "string" },
+                      altura_bruta_cm: { type: "number" },
+                      tem_recorte: { type: "boolean" },
+                      recorte_cm: { type: "number" },
+                      tem_mosca: { type: "boolean" },
+                      mosca_cm: { type: "number" },
+                      largura_cm: { type: "number" },
                     }
                   }
                 }
@@ -318,15 +336,53 @@ Se não conseguir extrair as dimensões, responda: {"erro": "descrição do prob
 
           if (response?.erro) {
             resultados.push({ nome: `Pág. ${img.pagina}`, pagina: img.pagina, aviso: response.erro, linhas: [] });
-          } else if (response?.x_cm && response?.linhas) {
+          } else if (response?.x_cm && response?.paineis?.length > 0) {
+            // ── CÁLCULO NO JAVASCRIPT — sem depender da IA para calcular ──
+            const linhas = [];
+            for (const painel of response.paineis) {
+              const id = painel.id || "?";
+              const altBruta = painel.altura_bruta_cm || 0;
+              const recorte  = painel.recorte_cm || 0;
+              const mosca    = painel.mosca_cm || 0;
+              const largura  = painel.largura_cm || response.y_cm || 0;
+
+              // Medida real da peça = medida bruta − recorte (se houver entalhe)
+              const altPeca = altBruta - recorte;
+
+              if (painel.tem_mosca && mosca > 0) {
+                // Painel com mosca: compensado desconta a espessura da mosca
+                const altCompensado = altPeca - mosca;
+                linhas.push({
+                  componente: `Compensado ${response.nome}${id}`,
+                  quantidade: 1,
+                  dimensoes: `${arred(altCompensado)} x ${arred(largura)} cm`,
+                  obs: "(altura descontada p/ mosca)",
+                  cor: COR_TIPO.compensado,
+                });
+                linhas.push({
+                  componente: "Mosca",
+                  quantidade: 1,
+                  dimensoes: `${arred(mosca)} x ${arred(largura)} cm`,
+                  obs: `fixada em ${response.nome}${id}`,
+                  cor: COR_TIPO.mosca,
+                });
+              } else {
+                // Painel normal
+                linhas.push({
+                  componente: `Compensado ${response.nome}${id}`,
+                  quantidade: 1,
+                  dimensoes: `${arred(altPeca)} x ${arred(largura)} cm`,
+                  obs: recorte > 0 ? `(recorte de ${recorte}cm aplicado)` : "",
+                  cor: COR_TIPO.compensado,
+                });
+              }
+            }
+
             resultados.push({
               nome: response.nome || `Elemento Pág. ${img.pagina}`,
               pagina: img.pagina,
               dimensoes: `[X]=${response.x_cm}cm · [Y]=${response.y_cm}cm`,
-              linhas: response.linhas.map(l => ({
-                ...l,
-                cor: COR_TIPO[l.componente?.toLowerCase().split(" ")[0]] || "#6B7280",
-              })),
+              linhas,
             });
           } else {
             resultados.push({ nome: `Pág. ${img.pagina}`, pagina: img.pagina, aviso: "Não foi possível extrair dimensões desta página.", linhas: [] });
