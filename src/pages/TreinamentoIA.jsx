@@ -78,8 +78,29 @@ function ProdutoSelector({ produtos, projetistas, selectedProduto, onSelect, onP
 }
 
 // ── Bolha de Mensagem ──────────────────────────────────────────────────────────
-function MessageBubble({ msg }) {
+function MessageBubble({ msg, onAprovar, onRejeitar, pendente, enviando }) {
   const isUser = msg.role === "user";
+  const [correcao, setCorrecao] = useState("");
+  const [showCorrecao, setShowCorrecao] = useState(false);
+
+  function handleRejeitar() {
+    setShowCorrecao(true);
+  }
+
+  function handleEnviarCorrecao() {
+    if (!correcao.trim()) return;
+    onRejeitar(correcao.trim());
+    setCorrecao("");
+    setShowCorrecao(false);
+  }
+
+  // Badge de status para mensagens já validadas
+  const validadoBadge = msg.validado === true
+    ? <span className="flex items-center gap-1 text-[10px] text-[#15803D] font-medium"><CheckCircle className="w-3 h-3" /> Gravado</span>
+    : msg.validado === false
+    ? <span className="flex items-center gap-1 text-[10px] text-[#DC2626] font-medium"><X className="w-3 h-3" /> Rejeitado</span>
+    : null;
+
   return (
     <div className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
       <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
@@ -87,7 +108,7 @@ function MessageBubble({ msg }) {
       }`}>
         {isUser ? <User className="w-3.5 h-3.5 text-white" /> : <Bot className="w-3.5 h-3.5 text-white" />}
       </div>
-      <div className={`max-w-[80%] flex flex-col gap-1 ${isUser ? "items-end" : "items-start"}`}>
+      <div className={`max-w-[82%] flex flex-col gap-1 ${isUser ? "items-end" : "items-start"}`}>
         {msg.pdfNome && (
           <div className="flex items-center gap-1.5 bg-[#EFF6FF] border border-[#BFDBFE] rounded-lg px-2.5 py-1.5 text-[10px] text-[#1D4ED8] font-medium">
             <FileText className="w-3 h-3" />
@@ -97,13 +118,76 @@ function MessageBubble({ msg }) {
         <div className={`px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
           isUser
             ? "bg-[#8B5CF6] text-white rounded-tr-sm"
-            : "bg-white border border-[#E5E5E8] text-[#1F1F24] rounded-tl-sm shadow-sm"
+            : pendente
+              ? "bg-white border-2 border-[#F59E0B] text-[#1F1F24] rounded-tl-sm shadow-sm"
+              : msg.validado === true
+                ? "bg-white border border-[#BBF7D0] text-[#1F1F24] rounded-tl-sm shadow-sm"
+                : "bg-white border border-[#E5E5E8] text-[#1F1F24] rounded-tl-sm shadow-sm"
         }`}>
           {msg.content}
         </div>
-        <span className="text-[9px] text-[#9CA3AF]">
-          {new Date(msg.timestamp).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-        </span>
+
+        {/* Botões de validação — apenas para mensagens da IA pendentes */}
+        {!isUser && pendente && !enviando && (
+          <div className="flex flex-col gap-2 mt-1 w-full">
+            <div className="flex gap-2">
+              <button
+                onClick={onAprovar}
+                className="flex items-center gap-1.5 h-8 px-4 rounded-xl text-xs font-semibold bg-[#22C55E] text-white hover:bg-[#16A34A] transition-colors"
+              >
+                <CheckCircle className="w-3.5 h-3.5" />
+                Correto — Gravar
+              </button>
+              <button
+                onClick={handleRejeitar}
+                className="flex items-center gap-1.5 h-8 px-4 rounded-xl text-xs font-semibold bg-white border border-[#FCA5A5] text-[#DC2626] hover:bg-[#FEF2F2] transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+                Errado
+              </button>
+            </div>
+
+            {/* Caixa de correção */}
+            {showCorrecao && (
+              <div className="flex flex-col gap-2 bg-[#FFF7ED] border border-[#FED7AA] rounded-xl p-3">
+                <p className="text-[11px] font-semibold text-[#92400E]">O que está errado? Explique para a IA corrigir:</p>
+                <textarea
+                  value={correcao}
+                  onChange={e => setCorrecao(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleEnviarCorrecao(); } }}
+                  placeholder="Ex: A dimensão X não é 95cm, é 84cm. O sarrafo vertical tem folga de 2cm."
+                  rows={2}
+                  autoFocus
+                  className="border border-[#FED7AA] rounded-lg px-3 py-2 text-xs text-[#1F1F24] focus:outline-none focus:ring-1 focus:ring-[#F59E0B] resize-none bg-white"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleEnviarCorrecao}
+                    disabled={!correcao.trim()}
+                    className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-[11px] font-semibold bg-[#F59E0B] text-white hover:bg-[#D97706] disabled:opacity-40 transition-colors"
+                  >
+                    <Send className="w-3 h-3" />
+                    Enviar correção
+                  </button>
+                  <button
+                    onClick={() => { setShowCorrecao(false); setCorrecao(""); }}
+                    className="h-7 px-3 rounded-lg text-[11px] text-[#6B7280] hover:text-[#374151] transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] text-[#9CA3AF]">
+            {new Date(msg.timestamp).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+          </span>
+          {validadoBadge}
+          {pendente && !enviando && <span className="text-[9px] text-[#F59E0B] font-medium">Aguardando validação</span>}
+        </div>
       </div>
     </div>
   );
@@ -121,6 +205,7 @@ export default function TreinamentoIA() {
   const [enviando, setEnviando] = useState(false);
   const [loadingAgente, setLoadingAgente] = useState(false);
   const [anexos, setAnexos] = useState([]); // [{ file, nome, fileUrl, totalPages }]
+  const [pendingMsgIdx, setPendingMsgIdx] = useState(null); // índice da msg da IA aguardando validação
   const [showRegras, setShowRegras] = useState(false);
   const [showExportar, setShowExportar] = useState(false);
   const fileInputRef = useRef(null);
@@ -367,34 +452,17 @@ INSTRUÇÕES:
         role: "assistant",
         content: typeof response === "string" ? response : response?.text || JSON.stringify(response),
         timestamp: Date.now(),
+        validado: null, // null = pendente, true = aprovado, false = rejeitado
       };
 
       const historicoAtualizado = [...novasMensagens, msgIA];
       setMensagens(historicoAtualizado);
+      setPendingMsgIdx(historicoAtualizado.length - 1); // marca como pendente de validação
 
-      const totalExemplos = (agente.total_exemplos || 0) + (anexosAtuais.length > 0 ? 1 : 0);
-      const novoStatus = totalExemplos === 0 ? "iniciando" : totalExemplos < 3 ? "em_treinamento" : "treinado";
+      // Salva histórico (sem consolidar — só consolida quando o usuário aprovar)
       const urlHistorico = await salvarHistorico(historicoAtualizado);
+      await base44.entities.AgenteIA.update(agente.id, { historico_conversa: urlHistorico });
 
-      // Salva histórico e status imediatamente (sem bloquear na consolidação)
-      await base44.entities.AgenteIA.update(agente.id, {
-        historico_conversa: urlHistorico,
-        total_exemplos: totalExemplos,
-        status_treinamento: novoStatus,
-      });
-
-      setAgente(ag => ({ ...ag, total_exemplos: totalExemplos, status_treinamento: novoStatus }));
-
-      // Consolidação com Claude roda em background (não bloqueia a UI)
-      const totalRespostasIA = historicoAtualizado.filter(m => m.role === "assistant").length;
-      if (totalRespostasIA === 1 || totalRespostasIA % 2 === 0) {
-        consolidarConhecimento(historicoAtualizado, agente.base_conhecimento || "")
-          .then(async (novaBase) => {
-            await base44.entities.AgenteIA.update(agente.id, { base_conhecimento: novaBase });
-            setAgente(ag => ({ ...ag, base_conhecimento: novaBase }));
-          })
-          .catch(e => console.warn("Consolidação em background falhou:", e.message));
-      }
     } catch (e) {
       const msgErro = {
         role: "assistant",
@@ -482,6 +550,114 @@ INSTRUÇÕES:
     const novaBase = reconstruirBase(sections);
     await base44.entities.AgenteIA.update(agente.id, { base_conhecimento: novaBase });
     setAgente(ag => ({ ...ag, base_conhecimento: novaBase }));
+  }
+
+  // Usuário aprovou a resposta da IA → consolida no banco
+  async function handleAprovarResposta() {
+    if (pendingMsgIdx === null) return;
+    const historicoAtualizado = mensagens.map((m, i) =>
+      i === pendingMsgIdx ? { ...m, validado: true } : m
+    );
+    setMensagens(historicoAtualizado);
+    setPendingMsgIdx(null);
+
+    const temAnexo = historicoAtualizado.slice(0, pendingMsgIdx).some(m => m.pdfNome);
+    const totalExemplos = (agente.total_exemplos || 0) + (temAnexo ? 1 : 0);
+    const novoStatus = totalExemplos === 0 ? "iniciando" : totalExemplos < 3 ? "em_treinamento" : "treinado";
+
+    const urlHistorico = await salvarHistorico(historicoAtualizado);
+    await base44.entities.AgenteIA.update(agente.id, {
+      historico_conversa: urlHistorico,
+      total_exemplos: totalExemplos,
+      status_treinamento: novoStatus,
+    });
+    setAgente(ag => ({ ...ag, total_exemplos: totalExemplos, status_treinamento: novoStatus }));
+
+    // Agora sim consolida no banco em background
+    consolidarConhecimento(historicoAtualizado, agente.base_conhecimento || "")
+      .then(async (novaBase) => {
+        await base44.entities.AgenteIA.update(agente.id, { base_conhecimento: novaBase });
+        setAgente(ag => ({ ...ag, base_conhecimento: novaBase }));
+      })
+      .catch(e => console.warn("Consolidação falhou:", e.message));
+  }
+
+  // Usuário rejeitou → marca como rejeitado e reenvia com a correção para a IA reprocessar
+  async function handleRejeitarResposta(textoCorrecao) {
+    if (pendingMsgIdx === null) return;
+    const idxRejeitado = pendingMsgIdx; // captura antes de zerar
+
+    // Marca a msg atual como rejeitada
+    const historicoMarcado = mensagens.map((m, i) =>
+      i === idxRejeitado ? { ...m, validado: false } : m
+    );
+    setMensagens(historicoMarcado);
+    setPendingMsgIdx(null);
+
+    // Cria uma mensagem de correção do usuário e reprocessa
+    const msgCorrecao = {
+      role: "user",
+      content: `CORREÇÃO: ${textoCorrecao}`,
+      timestamp: Date.now(),
+    };
+    const novasMensagens = [...historicoMarcado, msgCorrecao];
+    setMensagens(novasMensagens);
+    setEnviando(true);
+
+    // Prepara o contexto para reprocessamento
+    const baseConhecimento = agente.base_conhecimento || "";
+    const respostaRejeitada = historicoMarcado[idxRejeitado]?.content || "";
+    const msgOriginal = historicoMarcado.slice(0, idxRejeitado).filter(m => m.role === "user").slice(-1)[0]?.content || "";
+
+    const promptCorrecao = `Você é um assistente de treinamento técnico para formas de pré-moldados de concreto.
+
+Produto: ${selectedProduto?.nome}.
+${baseConhecimento ? `\nConhecimento já aprendido:\n${baseConhecimento.slice(0, 1500)}\n` : ""}
+
+CONTEXTO DO ERRO:
+- Instrução original do engenheiro: "${msgOriginal}"
+- Sua resposta anterior (REJEITADA pelo engenheiro): "${respostaRejeitada.slice(0, 500)}"
+- Correção do engenheiro: "${textoCorrecao}"
+
+INSTRUÇÕES:
+- Reprocesse o entendimento incorporando a correção do engenheiro
+- Mostre claramente o que foi corrigido em relação à resposta anterior
+- NÃO faça perguntas de confirmação — apresente o entendimento correto de forma direta
+- Máximo 3 parágrafos`;
+
+    try {
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Tempo limite atingido (45s).")), 45000)
+      );
+      const response = await Promise.race([
+        base44.integrations.Core.InvokeLLM({ prompt: promptCorrecao, model: "gemini_3_flash" }),
+        timeoutPromise,
+      ]);
+
+      const msgIACorrigida = {
+        role: "assistant",
+        content: typeof response === "string" ? response : response?.text || JSON.stringify(response),
+        timestamp: Date.now(),
+        validado: null,
+      };
+
+      const historicoFinal = [...novasMensagens, msgIACorrigida];
+      setMensagens(historicoFinal);
+      setPendingMsgIdx(historicoFinal.length - 1);
+
+      const urlHistorico = await salvarHistorico(historicoFinal);
+      await base44.entities.AgenteIA.update(agente.id, { historico_conversa: urlHistorico });
+    } catch (e) {
+      const msgErro = {
+        role: "assistant",
+        content: `Erro ao reprocessar: ${e.message}`,
+        timestamp: Date.now(),
+        validado: false,
+      };
+      setMensagens(prev => [...prev, msgErro]);
+    }
+
+    setEnviando(false);
   }
 
   const statusInfo = {
@@ -823,7 +999,14 @@ INSTRUÇÕES:
               {/* Mensagens */}
               <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
                 {mensagens.map((msg, i) => (
-                  <MessageBubble key={i} msg={msg} />
+                  <MessageBubble
+                    key={i}
+                    msg={msg}
+                    pendente={i === pendingMsgIdx}
+                    enviando={enviando}
+                    onAprovar={handleAprovarResposta}
+                    onRejeitar={handleRejeitarResposta}
+                  />
                 ))}
                 {enviando && (
                   <div className="flex gap-2.5">
