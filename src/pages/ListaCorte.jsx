@@ -33,6 +33,7 @@ const COR_TIPO = {
   compensado: "#3B82F6",
   sarrafo_vertical: "#F59E0B",
   sarrafo_acabamento: "#10B981",
+  mosca: "#8B5CF6",
 };
 
 // ── Dropzone ───────────────────────────────────────────────────────────────────
@@ -267,13 +268,20 @@ TAREFA: Baseado no aprendizado acima, extraia da imagem desta prancha:
 3. Dimensão principal Y (largura em cm)
 4. Lista de corte de madeira: para cada peça informe componente, quantidade e dimensões
 
+REGRA CRÍTICA — MOSCA:
+- Se o treinamento mencionar "MOSCA" para algum painel, você DEVE gerar DUAS linhas separadas na lista:
+  a) Uma linha para o Compensado principal, com a altura JÁ DESCONTADA (altura_bruta − espessura_compensado). Coloque no campo "obs" a nota "(altura descontada p/ mosca)".
+  b) Uma linha separada com o nome "Mosca", quantidade conforme o projeto, e as dimensões da mosca (ex: "16 x 95 cm"). Campo "obs" deve indicar em qual painel ela é fixada (ex: "fixada em P6A3").
+- A mosca é uma PEÇA FÍSICA que vai para a lista de corte, não apenas uma anotação.
+
 Responda SOMENTE em JSON válido neste formato exato:
 {
   "nome": "P1",
   "x_cm": 324,
   "y_cm": 19,
   "linhas": [
-    {"componente": "Compensado", "quantidade": 1, "dimensoes": "324 x 19 cm", "obs": ""},
+    {"componente": "Compensado P6A3", "quantidade": 1, "dimensoes": "62,5 x 115,4 cm", "obs": "(altura descontada p/ mosca)"},
+    {"componente": "Mosca", "quantidade": 1, "dimensoes": "16 x 95 cm", "obs": "fixada em P6A3"},
     {"componente": "Sarrafo Vertical", "quantidade": 2, "dimensoes": "319 x 4 cm", "obs": "emenda 200+119cm"}
   ]
 }
@@ -317,7 +325,7 @@ Se não conseguir extrair as dimensões, responda: {"erro": "descrição do prob
               dimensoes: `[X]=${response.x_cm}cm · [Y]=${response.y_cm}cm`,
               linhas: response.linhas.map(l => ({
                 ...l,
-                cor: COR_TIPO[l.componente?.toLowerCase().replace(" ", "_")] || "#6B7280",
+                cor: COR_TIPO[l.componente?.toLowerCase().split(" ")[0]] || "#6B7280",
               })),
             });
           } else {
