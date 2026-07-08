@@ -321,14 +321,32 @@ Responda APENAS com a base de conhecimento técnico atualizada e estruturada, se
 
       const temAnexo = anexosAtuais.length > 0;
       const promptBase = temAnexo
-        ? `Produto: ${selectedProduto?.nome}. Analise a imagem da prancha técnica e extraia as dimensões principais do elemento estrutural (altura X e largura Y em cm). Liste os valores encontrados de forma objetiva e pergunte se estão corretos. Seja breve.`
-        : `Produto: ${selectedProduto?.nome}.
-${baseConhecimento ? `Regras aprendidas:\n${baseConhecimento.slice(0, 1500)}\n` : ""}Histórico recente:
+        ? `Você é um assistente de treinamento técnico para formas de pré-moldados. O engenheiro está te enviando uma prancha técnica para te treinar.
+
+Produto: ${selectedProduto?.nome}.
+
+INSTRUÇÕES:
+- Analise a imagem e extraia as dimensões principais do elemento estrutural (altura X e largura Y em cm)
+- NÃO faça perguntas de confirmação. Assuma que os dados da prancha são corretos
+- Confirme o que você entendeu e aprendeu de forma direta e objetiva
+- Se o engenheiro enviou uma mensagem junto com a imagem, incorpore essas instruções no seu entendimento
+- Mensagem do engenheiro: "${msgUsuario.content || "(nenhuma mensagem adicional)"}"
+
+Responda confirmando o que aprendeu em no máximo 2 parágrafos. Nunca pergunte "Estes valores estão corretos?".`
+        : `Você é um assistente de treinamento técnico para formas de pré-moldados de concreto.
+
+Produto: ${selectedProduto?.nome}.
+${baseConhecimento ? `\nConhecimento já aprendido:\n${baseConhecimento.slice(0, 1500)}\n` : ""}
+Histórico recente:
 ${historicoRecente.map(h => `${h.role}: ${h.texto}`).join("\n")}
 
 Engenheiro: ${msgUsuario.content}
 
-Responda de forma objetiva e técnica em até 3 parágrafos.`;
+INSTRUÇÕES:
+- Responda de forma objetiva e técnica confirmando o que aprendeu ou esclarecendo dúvidas
+- NÃO faça perguntas de confirmação como "Estes valores estão corretos?" — assuma que o engenheiro está te ensinando e as informações dele são a fonte de verdade
+- Se o engenheiro estiver corrigindo algo, confirme a correção e mostre o entendimento atualizado
+- Máximo 3 parágrafos`;
 
       const fileUrls = anexosAtuais.map(a => a.fileUrl).filter(Boolean);
       const timeoutPromise = new Promise((_, reject) =>
