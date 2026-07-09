@@ -64,28 +64,10 @@ ALTER TABLE projetistas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE produtos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE gabaritos_espaciais ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE IF NOT EXISTS componentes (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  id_projetista uuid REFERENCES projetistas(id) ON DELETE CASCADE,
-  nome text NOT NULL,
-  tipo text NOT NULL,
-  dica_visual text,
-  cor text DEFAULT '#6B7280',
-  regras jsonb DEFAULT '{}'::jsonb,
-  ativo boolean DEFAULT true,
-  created_at timestamptz DEFAULT now()
-);
-
--- Se a tabela já existe, adiciona a coluna dica_visual
-ALTER TABLE componentes ADD COLUMN IF NOT EXISTS dica_visual text;
-
-ALTER TABLE componentes ENABLE ROW LEVEL SECURITY;
-
 -- Allow all operations for anon key (adjust as needed)
 CREATE POLICY IF NOT EXISTS "allow_all_projetistas" ON projetistas FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY IF NOT EXISTS "allow_all_produtos" ON produtos FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY IF NOT EXISTS "allow_all_gabaritos" ON gabaritos_espaciais FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY IF NOT EXISTS "allow_all_componentes" ON componentes FOR ALL USING (true) WITH CHECK (true);
     `.trim();
 
     return Response.json({ 

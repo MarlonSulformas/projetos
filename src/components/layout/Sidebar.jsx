@@ -6,7 +6,6 @@ import { LayoutDashboard, Users, Menu, X, Box, FileText, Bot } from "lucide-reac
 const navItems = [
   { icon: LayoutDashboard, label: "Painel Principal", path: "/" },
   { icon: Users, label: "Projetistas e Produtos", path: "/projetistas" },
-  { icon: Box, label: "Componentes e Regras", path: "/componentes" },
   { icon: Bot, label: "Treinamento IA (Passo 1)", path: "/treinamento-ia" },
   { icon: FileText, label: "Lista de Corte (Passo 2)", path: "/lista-corte" },
 ];

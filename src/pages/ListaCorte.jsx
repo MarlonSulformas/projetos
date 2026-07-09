@@ -5,7 +5,6 @@ import { ArrowLeft, Upload, FileText, Loader2, ChevronDown, ChevronUp, Package, 
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
 import { db } from "@/lib/supabaseClient";
-import { aplicarRegrasComponentes } from "@/lib/calculoCorte";
 
 import * as pdfjsLib from "pdfjs-dist";
 
@@ -79,11 +78,12 @@ function TabelaElemento({ elemento, index }) {
         </div>
         <div className="flex-1 text-left">
           <p className="text-sm font-semibold text-[#0F0F0F]">{elemento.nome}</p>
-          <p className="text-[10px] text-[#9CA3AF]">
-            {elemento.dimensoes} · {elemento.linhas?.length || 0} itens de corte
-          </p>
-          {elemento.aviso && (
+          {elemento.aviso ? (
             <p className="text-[10px] text-[#F59E0B] font-medium">{elemento.aviso}</p>
+          ) : (
+            <p className="text-[10px] text-[#9CA3AF]">
+              {elemento.dimensoes} · {elemento.linhas?.length || 0} itens de corte
+            </p>
           )}
         </div>
         <span className="text-xs text-[#9CA3AF] font-mono mr-2">Pág. {elemento.pagina}</span>
@@ -100,7 +100,7 @@ function TabelaElemento({ elemento, index }) {
         </div>
       )}
 
-      {open && elemento.linhas?.length > 0 && (
+      {open && !elemento.aviso && elemento.linhas?.length > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -201,12 +201,10 @@ export default function ListaCorte() {
   const [elementos, setElementos] = useState([]);
   const [erro, setErro] = useState(null);
   const [pdfNome, setPdfNome] = useState(null);
-  const [componentes, setComponentes] = useState([]);
 
   useEffect(() => {
     db.listProdutos().then(data => setProdutos(data || [])).catch(console.warn);
     db.listProjetistas().then(data => setProjetistas(data || [])).catch(console.warn);
-    db.listComponentes().then(data => setComponentes(data || [])).catch(console.warn);
   }, []);
 
   // Carregar agente ao selecionar produto
@@ -259,49 +257,36 @@ export default function ListaCorte() {
         const img = imagensComUrl[i];
         setProgresso({ atual: i + 1, total: imagensComUrl.length, msg: `Processando página ${i + 1} de ${imagensComUrl.length}...` });
 
-        // Mapeamento rico de componentes com dicas visuais
-        const componentesFormatados = componentes.length > 0
-          ? componentes.map(c =>
-              `- TIPO_ID: "${c.tipo}" | Nome: "${c.nome}" | Como identificar na prancha: "${c.dica_visual || 'Buscar por cota com este nome ou medida correspondente'}"`
-            ).join("\n")
-          : "Nenhum componente cadastrado ainda";
+        const prompt = `Você é um engenheiro especializado em pré-moldados. Analise esta prancha técnica estrutural.
 
-        // Array de tipos válidos para travar o Schema JSON da IA
-        const tiposValidos = [...new Set(componentes.map(c => c.tipo).filter(Boolean))];
+CONTEXTO DE TREINAMENTO (como este produto foi aprendido anteriormente):
+${resumoTreinamento}
 
-        const prompt = `Você é um EXTRATOR DE DADOS TÉCNICOS E VISUAIS de pranchas e projetos estruturais de engenharia.
-Sua única função é LER O DESENHO, identificar as peças e extrair as medidas brutas anotadas nas linhas de cota.
+TAREFA: Baseado no aprendizado acima, extraia da imagem desta prancha:
+1. Nome/ID do elemento (ex: P1, Pilar-01, etc.)
+2. Dimensão principal X (altura em cm)
+3. Dimensão principal Y (largura em cm)
+4. Lista de corte de madeira: para cada peça informe componente, quantidade e dimensões
 
-⚠️ REGRAS DE ZERO TOLERÂNCIA PARA ALUCINAÇÃO:
-1. NÃO FAÇA CÁLCULOS MATEMÁTICOS! NÃO aplique fórmulas, descontos, folgas ou emendas.
-2. Extraia EXATAMENTE o número (medida bruta) que aparece escrito na linha de cota do desenho.
-3. Se houver múltiplas peças do mesmo tipo em posições diferentes, retorne um item separado para cada uma.
-4. Você só pode classificar uma peça usando os "TIPO_ID" listados na seção de componentes cadastrados.
+REGRA CRÍTICA — MOSCA:
+- Se o treinamento mencionar "MOSCA" para algum painel, você DEVE gerar DUAS linhas separadas na lista:
+  a) Uma linha para o Compensado principal, com a altura JÁ DESCONTADA (altura_bruta − espessura_compensado). Coloque no campo "obs" a nota "(altura descontada p/ mosca)".
+  b) Uma linha separada com o nome "Mosca", quantidade conforme o projeto, e as dimensões da mosca (ex: "16 x 95 cm"). Campo "obs" deve indicar em qual painel ela é fixada (ex: "fixada em P6A3").
+- A mosca é uma PEÇA FÍSICA que vai para a lista de corte, não apenas uma anotação.
 
-=== BASE DE CONHECIMENTO E TREINAMENTO DA EMPRESA ===
-${resumoTreinamento || "Nenhuma instrução adicional de treinamento fornecida."}
-=====================================================
-
-=== COMPONENTES CADASTRADOS NO SISTEMA ===
-${componentesFormatados}
-==========================================
-
-TAREFA:
-1. Identifique o código/nome geral do painel ou prancha (ex: P1, Viga-02, P6B3).
-2. Extraia as dimensões totais gerais do painel: Altura X (cm) e Largura Y (cm).
-3. Varre o desenho, localize cada componente usando a "dica visual" e retorne a medida bruta exata lida na cota.
-
-Responda SOMENTE em JSON válido:
+Responda SOMENTE em JSON válido neste formato exato:
 {
-  "nome": "P6B3",
-  "x_cm": 60,
-  "y_cm": 115.4,
-  "componentes_extraidos": [
-    {"tipo": "TIPO_ID_cadastrado", "componente_nome": "Nome do Componente", "altura_bruta": 0, "largura_bruta": 0, "quantidade": 1}
+  "nome": "P1",
+  "x_cm": 324,
+  "y_cm": 19,
+  "linhas": [
+    {"componente": "Compensado P6A3", "quantidade": 1, "dimensoes": "62,5 x 115,4 cm", "obs": "(altura descontada p/ mosca)"},
+    {"componente": "Mosca", "quantidade": 1, "dimensoes": "16 x 95 cm", "obs": "fixada em P6A3"},
+    {"componente": "Sarrafo Vertical", "quantidade": 2, "dimensoes": "319 x 4 cm", "obs": "emenda 200+119cm"}
   ]
 }
 
-Se não conseguir extrair, responda: {"erro": "descrição do problema"}`;
+Se não conseguir extrair as dimensões, responda: {"erro": "descrição do problema"}`;
 
         try {
           const response = await base44.integrations.Core.InvokeLLM({
@@ -311,45 +296,37 @@ Se não conseguir extrair, responda: {"erro": "descrição do problema"}`;
             response_json_schema: {
               type: "object",
               properties: {
-                nome: { type: "string", description: "Nome do painel/prancha lido" },
-                x_cm: { type: "number", description: "Altura total do painel em cm" },
-                y_cm: { type: "number", description: "Largura total do painel em cm" },
-                erro: { type: "string", description: "Preencha apenas se o desenho estiver ilegível" },
-                componentes_extraidos: {
+                nome: { type: "string" },
+                x_cm: { type: "number" },
+                y_cm: { type: "number" },
+                erro: { type: "string" },
+                linhas: {
                   type: "array",
                   items: {
                     type: "object",
                     properties: {
-                      tipo: {
-                        type: "string",
-                        enum: tiposValidos.length > 0 ? tiposValidos : ["indefinido"],
-                        description: "DEVE ser exatamente um dos TIPO_ID cadastrados"
-                      },
-                      componente_nome: { type: "string" },
-                      altura_bruta: { type: "number", description: "Medida vertical ou comprimento bruto lidos na cota" },
-                      largura_bruta: { type: "number", description: "Medida horizontal bruta (se aplicável)" },
-                      quantidade: { type: "number", description: "Quantidade desta peça exata visualizada" },
-                      obs: { type: "string", description: "Sigla ou anotação encontrada ao lado da peça no desenho" }
-                    },
-                    required: ["tipo", "altura_bruta", "quantidade"]
+                      componente: { type: "string" },
+                      quantidade: { type: "number" },
+                      dimensoes: { type: "string" },
+                      obs: { type: "string" },
+                    }
                   }
                 }
-              },
-              required: ["nome", "x_cm", "y_cm", "componentes_extraidos"]
+              }
             }
           });
 
           if (response?.erro) {
             resultados.push({ nome: `Pág. ${img.pagina}`, pagina: img.pagina, aviso: response.erro, linhas: [] });
-          } else if (response?.x_cm && response?.componentes_extraidos) {
-            // IA extraiu dados brutos → Sistema aplica as regras cadastradas
-            const { linhas, avisos } = aplicarRegrasComponentes(response, componentes);
+          } else if (response?.x_cm && response?.linhas) {
             resultados.push({
               nome: response.nome || `Elemento Pág. ${img.pagina}`,
               pagina: img.pagina,
               dimensoes: `[X]=${response.x_cm}cm · [Y]=${response.y_cm}cm`,
-              linhas,
-              aviso: avisos.length > 0 ? avisos.join("; ") : null,
+              linhas: response.linhas.map(l => ({
+                ...l,
+                cor: COR_TIPO[l.componente?.toLowerCase().split(" ")[0]] || "#6B7280",
+              })),
             });
           } else {
             resultados.push({ nome: `Pág. ${img.pagina}`, pagina: img.pagina, aviso: "Não foi possível extrair dimensões desta página.", linhas: [] });

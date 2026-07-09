@@ -9,28 +9,11 @@ const DESCONTO_ACABAMENTO_TOPO_CM = 7;
 const LIMITE_Y_SIMPLES_CM = 24;
 
 /**
- * Normaliza texto para comparação resiliente:
- * remove acentos, converte para minúsculas e faz trim.
- */
-function normalizarTexto(str) {
-  if (!str) return "";
-  return String(str)
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim();
-}
-
-/**
  * Resolve fórmula paramétrica com [X] e [Y]
  */
-export function resolveFormula(formula, X, Y, MEDIDA = 0, LARGURA = 0) {
+export function resolveFormula(formula, X, Y) {
   if (!formula) return 0;
-  const str = String(formula)
-    .replace(/\[X\]/g, X)
-    .replace(/\[Y\]/g, Y)
-    .replace(/\[MEDIDA\]/g, MEDIDA)
-    .replace(/\[LARGURA\]/g, LARGURA);
+  const str = String(formula).replace(/\[X\]/g, X).replace(/\[Y\]/g, Y);
   try { return Math.max(0, parseFloat(eval(str)) || 0); } catch { return 0; }
 }
 
@@ -151,101 +134,4 @@ export function gerarPlanoCorte(painel, X_mm, Y_mm) {
   });
 
   return grupos;
-}
-
-/**
- * Motor de Regras Dinâmico — aplica regras cadastradas no banco aos dados brutos extraídos pela IA.
- * A IA apenas extrai; este motor calcula.
- * @param {object} dadosExtraidos - { nome, x_cm, y_cm, componentes_extraidos: [...] }
- * @param {Array} componentesCadastrados - [{ tipo, nome, cor, regras: {...} }]
- * @returns {{ linhas: Array, avisos: Array }}
- */
-export function aplicarRegrasComponentes(dadosExtraidos, componentesCadastrados) {
-  const linhas = [];
-  const avisos = [];
-  const X = parseFloat(dadosExtraidos.x_cm) || 0;
-  const Y = parseFloat(dadosExtraidos.y_cm) || 0;
-
-  for (const extraido of (dadosExtraidos.componentes_extraidos || [])) {
-    const comp = componentesCadastrados.find(c =>
-      normalizarTexto(c.tipo) === normalizarTexto(extraido.tipo) ||
-      normalizarTexto(c.nome) === normalizarTexto(extraido.componente_nome)
-    );
-
-    if (!comp) {
-      linhas.push({
-        componente: extraido.componente_nome || extraido.tipo,
-        quantidade: extraido.quantidade || 1,
-        dimensoes: `${extraido.altura_bruta} x ${extraido.largura_bruta} cm`,
-        obs: "⚠️ Sem regra cadastrada — medida bruta",
-        cor: "#6B7280",
-      });
-      avisos.push(`Componente "${extraido.componente_nome || extraido.tipo}" sem regra cadastrada.`);
-      continue;
-    }
-
-    const regras = comp.regras || {};
-    const MEDIDA = parseFloat(extraido.altura_bruta) || 0;
-    const LARGURA_COMP = parseFloat(regras.largura) || 0;
-    let comprimento = MEDIDA;
-    let largura = parseFloat(extraido.largura_bruta) || 0;
-
-    // Fórmulas paramétricas: [MEDIDA], [LARGURA], [X], [Y]
-    if (regras.formula_comprimento) {
-      comprimento = resolveFormula(regras.formula_comprimento, X, Y, MEDIDA, LARGURA_COMP);
-    } else {
-      // Descontos só aplicam se não houver fórmula manual
-      if (regras.desconto_fixo) comprimento -= parseFloat(regras.desconto_fixo);
-      if (regras.desconto_percentual) comprimento *= (1 - parseFloat(regras.desconto_percentual) / 100);
-      if (regras.folga) comprimento -= parseFloat(regras.folga);
-    }
-    if (regras.formula_largura) {
-      largura = resolveFormula(regras.formula_largura, X, Y, MEDIDA, LARGURA_COMP);
-    }
-
-    // Quantidade
-    let quantidade = parseInt(regras.quantidade) || extraido.quantidade || 1;
-    if (regras.regra_qty_y && Y > (regras.limite_y_simples || 24)) {
-      quantidade = parseInt(regras.qty_extra) || 2;
-    }
-
-    // Formatar dimensões: se tem largura (compensado), mostra "C x L"; senão só comprimento
-    const fmtDim = (c, l) => l > 0 ? `${c} x ${l} cm` : `${c} cm`;
-
-    // Emenda
-    if (regras.regra_emenda && comprimento > (regras.limite_emenda || 244)) {
-      const modulo = regras.modulo_emenda || 200;
-      const pecaEmenda = Math.round((comprimento - modulo) * 10) / 10;
-      linhas.push({
-        componente: comp.nome,
-        quantidade,
-        dimensoes: fmtDim(modulo, Math.round(largura * 10) / 10),
-        obs: "Peça padrão (emenda)",
-        cor: comp.cor || "#6B7280",
-      });
-      linhas.push({
-        componente: comp.nome,
-        quantidade,
-        dimensoes: fmtDim(pecaEmenda, Math.round(largura * 10) / 10),
-        obs: "Peça de emenda",
-        cor: comp.cor || "#6B7280",
-      });
-    } else {
-      const comprimentoFinal = Math.round(comprimento * 10) / 10;
-      const larguraFinal = Math.round(largura * 10) / 10;
-      const obsParts = [];
-      if (extraido.obs) obsParts.push(extraido.obs);
-      if (!regras.formula_comprimento && regras.desconto_fixo) obsParts.push(`−${regras.desconto_fixo}cm`);
-      if (!regras.formula_comprimento && regras.desconto_percentual) obsParts.push(`−${regras.desconto_percentual}%`);
-      linhas.push({
-        componente: comp.nome,
-        quantidade,
-        dimensoes: fmtDim(comprimentoFinal, larguraFinal),
-        obs: obsParts.join(" · ") || "—",
-        cor: comp.cor || "#6B7280",
-      });
-    }
-  }
-
-  return { linhas, avisos };
 }
