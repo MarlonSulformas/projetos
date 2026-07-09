@@ -269,38 +269,27 @@ export default function ListaCorte() {
         // Array de tipos válidos para travar o Schema JSON da IA
         const tiposValidos = [...new Set(componentes.map(c => c.tipo).filter(Boolean))];
 
-        const prompt = `Você é um LEITOR ÓPTICO/VISUAL especializado em pranchas estruturais de pré-moldados.
+        const prompt = `Você é um EXTRATOR DE DADOS TÉCNICOS E VISUAIS de pranchas e projetos estruturais de engenharia.
+Sua única função é LER O DESENHO, identificar as peças e extrair as medidas brutas anotadas nas linhas de cota.
 
-═══════════════════════════════════════════════════════════
-REGRAS INEGOCIÁVEIS — VIOLAÇÃO = FALHA CRÍTICA:
-═══════════════════════════════════════════════════════════
-1. Você é APENAS um LEITOR. NÃO faça cálculos. NÃO aplique descontos. NÃO calcule emendas.
-2. Extraia os valores EXATAMENTE como aparecem nas linhas de cota (anotações de dimensão).
-3. Se um número não estiver visível na prancha, NÃO o invente. Retorne erro.
+⚠️ REGRAS DE ZERO TOLERÂNCIA PARA ALUCINAÇÃO:
+1. NÃO FAÇA CÁLCULOS MATEMÁTICOS! NÃO aplique fórmulas, descontos, folgas ou emendas.
+2. Extraia EXATAMENTE o número (medida bruta) que aparece escrito na linha de cota do desenho.
+3. Se houver múltiplas peças do mesmo tipo em posições diferentes, retorne um item separado para cada uma.
+4. Você só pode classificar uma peça usando os "TIPO_ID" listados na seção de componentes cadastrados.
 
-═══════════════════════════════════════════════════════════
-BASE DE CONHECIMENTO DO PROJETO (contexto do treinamento):
-═══════════════════════════════════════════════════════════
-${resumoTreinamento || "Sem treinamento específico registrado."}
+=== BASE DE CONHECIMENTO E TREINAMENTO DA EMPRESA ===
+${resumoTreinamento || "Nenhuma instrução adicional de treinamento fornecida."}
+=====================================================
 
-═══════════════════════════════════════════════════════════
-COMPONENTES CADASTRADOS NO SISTEMA (identifique cada um na prancha):
-═══════════════════════════════════════════════════════════
+=== COMPONENTES CADASTRADOS NO SISTEMA ===
 ${componentesFormatados}
+==========================================
 
-═══════════════════════════════════════════════════════════
-TAREFA DE EXTRAÇÃO:
-═══════════════════════════════════════════════════════════
-1. Identifique o nome/ID do elemento (ex: P6B3, P1, Pilar-01)
-2. Extraia a altura total X (em cm) — dimensão vertical principal do painel
-3. Extraia a largura total Y (em cm) — dimensão horizontal principal do painel
-4. Para cada componente encontrado na prancha:
-   - Use a "dica visual" acima para localizar a peça correta
-   - O "tipo" DEVE ser um dos TIPO_ID listados acima (não invente novos tipos)
-   - Extraia a MEDIDA BRUTA anotada no desenho (o número que aparece na linha de cota)
-   - Para o compensado, extraia ambas as dimensões (altura_bruta e largura_bruta)
-   - Para sarrafos, extraia apenas a medida anotada (altura_bruta = medida, largura_bruta = 0)
-   - Se houver múltiplos do mesmo tipo (ex: 2 sarrafos de pressão), crie uma entrada para cada
+TAREFA:
+1. Identifique o código/nome geral do painel ou prancha (ex: P1, Viga-02, P6B3).
+2. Extraia as dimensões totais gerais do painel: Altura X (cm) e Largura Y (cm).
+3. Varre o desenho, localize cada componente usando a "dica visual" e retorne a medida bruta exata lida na cota.
 
 Responda SOMENTE em JSON válido:
 {
@@ -308,9 +297,7 @@ Responda SOMENTE em JSON válido:
   "x_cm": 60,
   "y_cm": 115.4,
   "componentes_extraidos": [
-    {"tipo": "compensado", "componente_nome": "Compensado", "altura_bruta": 60, "largura_bruta": 115.4, "quantidade": 1},
-    {"tipo": "sarrafo_pressao", "componente_nome": "Sarrafo de Pressão", "altura_bruta": 40, "largura_bruta": 0, "quantidade": 1},
-    {"tipo": "sarrafo_acabamento_1", "componente_nome": "Sarrafo de Acabamento 1", "altura_bruta": 71.5, "largura_bruta": 0, "quantidade": 1}
+    {"tipo": "TIPO_ID_cadastrado", "componente_nome": "Nome do Componente", "altura_bruta": 0, "largura_bruta": 0, "quantidade": 1}
   ]
 }
 
