@@ -53,4 +53,22 @@ export const db = {
   async deleteGabarito(id) {
     return call("delete", "gabaritos_espaciais", { id });
   },
+
+  // componentes
+  async listComponentes() {
+    const data = await call("select", "componentes");
+    return (data || []).map(c => ({
+      ...c,
+      regras: typeof c.regras === "string" ? JSON.parse(c.regras) : (c.regras || {}),
+    }));
+  },
+  async createComponente(data) {
+    return call("insert", "componentes", data);
+  },
+  async updateComponente(id, fields) {
+    return call("update", "componentes", { id, ...fields });
+  },
+  async deleteComponente(id) {
+    return call("delete", "componentes", { id });
+  },
 };

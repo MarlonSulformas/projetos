@@ -5,6 +5,7 @@ import { ArrowLeft, Upload, FileText, Loader2, ChevronDown, ChevronUp, Package, 
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
 import { db } from "@/lib/supabaseClient";
+import { aplicarRegrasComponentes } from "@/lib/calculoCorte";
 
 import * as pdfjsLib from "pdfjs-dist";
 
@@ -78,12 +79,11 @@ function TabelaElemento({ elemento, index }) {
         </div>
         <div className="flex-1 text-left">
           <p className="text-sm font-semibold text-[#0F0F0F]">{elemento.nome}</p>
-          {elemento.aviso ? (
+          <p className="text-[10px] text-[#9CA3AF]">
+            {elemento.dimensoes} · {elemento.linhas?.length || 0} itens de corte
+          </p>
+          {elemento.aviso && (
             <p className="text-[10px] text-[#F59E0B] font-medium">{elemento.aviso}</p>
-          ) : (
-            <p className="text-[10px] text-[#9CA3AF]">
-              {elemento.dimensoes} · {elemento.linhas?.length || 0} itens de corte
-            </p>
           )}
         </div>
         <span className="text-xs text-[#9CA3AF] font-mono mr-2">Pág. {elemento.pagina}</span>
@@ -100,7 +100,7 @@ function TabelaElemento({ elemento, index }) {
         </div>
       )}
 
-      {open && !elemento.aviso && elemento.linhas?.length > 0 && (
+      {open && elemento.linhas?.length > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -201,10 +201,12 @@ export default function ListaCorte() {
   const [elementos, setElementos] = useState([]);
   const [erro, setErro] = useState(null);
   const [pdfNome, setPdfNome] = useState(null);
+  const [componentes, setComponentes] = useState([]);
 
   useEffect(() => {
     db.listProdutos().then(data => setProdutos(data || [])).catch(console.warn);
     db.listProjetistas().then(data => setProjetistas(data || [])).catch(console.warn);
+    db.listComponentes().then(data => setComponentes(data || [])).catch(console.warn);
   }, []);
 
   // Carregar agente ao selecionar produto
@@ -257,36 +259,36 @@ export default function ListaCorte() {
         const img = imagensComUrl[i];
         setProgresso({ atual: i + 1, total: imagensComUrl.length, msg: `Processando página ${i + 1} de ${imagensComUrl.length}...` });
 
-        const prompt = `Você é um engenheiro especializado em pré-moldados. Analise esta prancha técnica estrutural.
+        const componentesList = componentes.length > 0
+          ? componentes.map(c => `- ${c.nome} (tipo: "${c.tipo}")`).join("\n")
+          : "Nenhum componente cadastrado ainda";
 
-CONTEXTO DE TREINAMENTO (como este produto foi aprendido anteriormente):
-${resumoTreinamento}
+        const prompt = `Você é um EXTRATOR de dados técnicos. Analise esta prancha e extraia APENAS as medidas brutas que aparecem no desenho.
 
-TAREFA: Baseado no aprendizado acima, extraia da imagem desta prancha:
-1. Nome/ID do elemento (ex: P1, Pilar-01, etc.)
-2. Dimensão principal X (altura em cm)
-3. Dimensão principal Y (largura em cm)
-4. Lista de corte de madeira: para cada peça informe componente, quantidade e dimensões
+NÃO faça cálculos. NÃO aplique descontos. NÃO calcule emendas. Extraia os valores exatamente como aparecem na prancha.
 
-REGRA CRÍTICA — MOSCA:
-- Se o treinamento mencionar "MOSCA" para algum painel, você DEVE gerar DUAS linhas separadas na lista:
-  a) Uma linha para o Compensado principal, com a altura JÁ DESCONTADA (altura_bruta − espessura_compensado). Coloque no campo "obs" a nota "(altura descontada p/ mosca)".
-  b) Uma linha separada com o nome "Mosca", quantidade conforme o projeto, e as dimensões da mosca (ex: "16 x 95 cm"). Campo "obs" deve indicar em qual painel ela é fixada (ex: "fixada em P6A3").
-- A mosca é uma PEÇA FÍSICA que vai para a lista de corte, não apenas uma anotação.
+COMPONENTES CADASTRADOS NO SISTEMA (identifique cada um na prancha):
+${componentesList}
 
-Responda SOMENTE em JSON válido neste formato exato:
+TAREFA:
+1. Identifique o nome/ID do elemento (ex: P1, Pilar-01)
+2. Extraia a altura total X (em cm)
+3. Extraia a largura total Y (em cm)
+4. Para cada componente encontrado, extraia a medida BRUTA (altura e largura em cm, sem nenhum desconto)
+
+Responda SOMENTE em JSON válido:
 {
   "nome": "P1",
   "x_cm": 324,
   "y_cm": 19,
-  "linhas": [
-    {"componente": "Compensado P6A3", "quantidade": 1, "dimensoes": "62,5 x 115,4 cm", "obs": "(altura descontada p/ mosca)"},
-    {"componente": "Mosca", "quantidade": 1, "dimensoes": "16 x 95 cm", "obs": "fixada em P6A3"},
-    {"componente": "Sarrafo Vertical", "quantidade": 2, "dimensoes": "319 x 4 cm", "obs": "emenda 200+119cm"}
+  "componentes_extraidos": [
+    {"tipo": "compensado", "componente_nome": "Compensado", "altura_bruta": 324, "largura_bruta": 19, "quantidade": 1},
+    {"tipo": "sarrafo_pressao", "componente_nome": "Sarrafo de Pressão", "altura_bruta": 324, "largura_bruta": 4, "quantidade": 2},
+    {"tipo": "mosca", "componente_nome": "Mosca", "altura_bruta": 16, "largura_bruta": 95, "quantidade": 1, "obs": "fixada em P6A3"}
   ]
 }
 
-Se não conseguir extrair as dimensões, responda: {"erro": "descrição do problema"}`;
+Se não conseguir extrair, responda: {"erro": "descrição do problema"}`;
 
         try {
           const response = await base44.integrations.Core.InvokeLLM({
@@ -300,14 +302,16 @@ Se não conseguir extrair as dimensões, responda: {"erro": "descrição do prob
                 x_cm: { type: "number" },
                 y_cm: { type: "number" },
                 erro: { type: "string" },
-                linhas: {
+                componentes_extraidos: {
                   type: "array",
                   items: {
                     type: "object",
                     properties: {
-                      componente: { type: "string" },
+                      tipo: { type: "string" },
+                      componente_nome: { type: "string" },
+                      altura_bruta: { type: "number" },
+                      largura_bruta: { type: "number" },
                       quantidade: { type: "number" },
-                      dimensoes: { type: "string" },
                       obs: { type: "string" },
                     }
                   }
@@ -318,15 +322,15 @@ Se não conseguir extrair as dimensões, responda: {"erro": "descrição do prob
 
           if (response?.erro) {
             resultados.push({ nome: `Pág. ${img.pagina}`, pagina: img.pagina, aviso: response.erro, linhas: [] });
-          } else if (response?.x_cm && response?.linhas) {
+          } else if (response?.x_cm && response?.componentes_extraidos) {
+            // IA extraiu dados brutos → Sistema aplica as regras cadastradas
+            const { linhas, avisos } = aplicarRegrasComponentes(response, componentes);
             resultados.push({
               nome: response.nome || `Elemento Pág. ${img.pagina}`,
               pagina: img.pagina,
               dimensoes: `[X]=${response.x_cm}cm · [Y]=${response.y_cm}cm`,
-              linhas: response.linhas.map(l => ({
-                ...l,
-                cor: COR_TIPO[l.componente?.toLowerCase().split(" ")[0]] || "#6B7280",
-              })),
+              linhas,
+              aviso: avisos.length > 0 ? avisos.join("; ") : null,
             });
           } else {
             resultados.push({ nome: `Pág. ${img.pagina}`, pagina: img.pagina, aviso: "Não foi possível extrair dimensões desta página.", linhas: [] });

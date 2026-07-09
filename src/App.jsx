@@ -19,6 +19,7 @@ import RegraSecao from '@/pages/RegraSecao';
 import TreinamentoPainel from '@/pages/TreinamentoPainel';
 import TreinamentoIA from '@/pages/TreinamentoIA';
 import ListaCorte from '@/pages/ListaCorte';
+import Componentes from '@/pages/Componentes';
 import AppLayout from '@/components/layout/AppLayout';
 
 const AuthenticatedApp = () => {
@@ -59,6 +60,7 @@ const AuthenticatedApp = () => {
           <Route path="/treinamento-painel" element={<TreinamentoPainel />} />
           <Route path="/treinamento-ia" element={<TreinamentoIA />} />
           <Route path="/lista-corte" element={<ListaCorte />} />
+          <Route path="/componentes" element={<Componentes />} />
         </Route>
       </Route>
       <Route path="*" element={<PageNotFound />} />

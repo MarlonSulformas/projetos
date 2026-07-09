@@ -135,3 +135,91 @@ export function gerarPlanoCorte(painel, X_mm, Y_mm) {
 
   return grupos;
 }
+
+/**
+ * Motor de Regras Dinâmico — aplica regras cadastradas no banco aos dados brutos extraídos pela IA.
+ * A IA apenas extrai; este motor calcula.
+ * @param {object} dadosExtraidos - { nome, x_cm, y_cm, componentes_extraidos: [...] }
+ * @param {Array} componentesCadastrados - [{ tipo, nome, cor, regras: {...} }]
+ * @returns {{ linhas: Array, avisos: Array }}
+ */
+export function aplicarRegrasComponentes(dadosExtraidos, componentesCadastrados) {
+  const linhas = [];
+  const avisos = [];
+  const X = parseFloat(dadosExtraidos.x_cm) || 0;
+  const Y = parseFloat(dadosExtraidos.y_cm) || 0;
+
+  for (const extraido of (dadosExtraidos.componentes_extraidos || [])) {
+    const comp = componentesCadastrados.find(c =>
+      c.tipo === extraido.tipo ||
+      c.nome?.toLowerCase() === extraido.componente_nome?.toLowerCase()
+    );
+
+    if (!comp) {
+      linhas.push({
+        componente: extraido.componente_nome || extraido.tipo,
+        quantidade: extraido.quantidade || 1,
+        dimensoes: `${extraido.altura_bruta} x ${extraido.largura_bruta} cm`,
+        obs: "⚠️ Sem regra cadastrada — medida bruta",
+        cor: "#6B7280",
+      });
+      avisos.push(`Componente "${extraido.componente_nome || extraido.tipo}" sem regra cadastrada.`);
+      continue;
+    }
+
+    const regras = comp.regras || {};
+    let comprimento = parseFloat(extraido.altura_bruta) || 0;
+    let largura = parseFloat(extraido.largura_bruta) || 0;
+
+    // Fórmulas paramétricas [X] e [Y]
+    if (regras.formula_comprimento) comprimento = resolveFormula(regras.formula_comprimento, X, Y);
+    if (regras.formula_largura) largura = resolveFormula(regras.formula_largura, X, Y);
+
+    // Descontos
+    if (regras.desconto_fixo) comprimento -= parseFloat(regras.desconto_fixo);
+    if (regras.desconto_percentual) comprimento *= (1 - parseFloat(regras.desconto_percentual) / 100);
+    if (regras.folga) comprimento -= parseFloat(regras.folga);
+
+    // Quantidade
+    let quantidade = parseInt(regras.quantidade) || extraido.quantidade || 1;
+    if (regras.regra_qty_y && Y > (regras.limite_y_simples || 24)) {
+      quantidade = parseInt(regras.qty_extra) || 2;
+    }
+
+    // Emenda
+    if (regras.regra_emenda && comprimento > (regras.limite_emenda || 244)) {
+      const modulo = regras.modulo_emenda || 200;
+      const pecaEmenda = Math.round((comprimento - modulo) * 10) / 10;
+      linhas.push({
+        componente: comp.nome,
+        quantidade,
+        dimensoes: `${modulo} x ${Math.round(largura * 10) / 10} cm`,
+        obs: "Peça padrão (emenda)",
+        cor: comp.cor || "#6B7280",
+      });
+      linhas.push({
+        componente: comp.nome,
+        quantidade,
+        dimensoes: `${pecaEmenda} x ${Math.round(largura * 10) / 10} cm`,
+        obs: "Peça de emenda",
+        cor: comp.cor || "#6B7280",
+      });
+    } else {
+      const comprimentoFinal = Math.round(comprimento * 10) / 10;
+      const larguraFinal = Math.round(largura * 10) / 10;
+      const obsParts = [];
+      if (extraido.obs) obsParts.push(extraido.obs);
+      if (regras.desconto_fixo) obsParts.push(`−${regras.desconto_fixo}cm`);
+      if (regras.desconto_percentual) obsParts.push(`−${regras.desconto_percentual}%`);
+      linhas.push({
+        componente: comp.nome,
+        quantidade,
+        dimensoes: `${comprimentoFinal} x ${larguraFinal} cm`,
+        obs: obsParts.join(" · ") || "—",
+        cor: comp.cor || "#6B7280",
+      });
+    }
+  }
+
+  return { linhas, avisos };
+}
