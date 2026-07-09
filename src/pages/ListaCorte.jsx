@@ -311,25 +311,31 @@ Se não conseguir extrair, responda: {"erro": "descrição do problema"}`;
             response_json_schema: {
               type: "object",
               properties: {
-                nome: { type: "string" },
-                x_cm: { type: "number" },
-                y_cm: { type: "number" },
-                erro: { type: "string" },
+                nome: { type: "string", description: "Nome do painel/prancha lido" },
+                x_cm: { type: "number", description: "Altura total do painel em cm" },
+                y_cm: { type: "number", description: "Largura total do painel em cm" },
+                erro: { type: "string", description: "Preencha apenas se o desenho estiver ilegível" },
                 componentes_extraidos: {
                   type: "array",
                   items: {
                     type: "object",
                     properties: {
-                      tipo: tiposValidos.length > 0 ? { type: "string", enum: tiposValidos } : { type: "string" },
+                      tipo: {
+                        type: "string",
+                        enum: tiposValidos.length > 0 ? tiposValidos : ["indefinido"],
+                        description: "DEVE ser exatamente um dos TIPO_ID cadastrados"
+                      },
                       componente_nome: { type: "string" },
-                      altura_bruta: { type: "number" },
-                      largura_bruta: { type: "number" },
-                      quantidade: { type: "number" },
-                      obs: { type: "string" },
-                    }
+                      altura_bruta: { type: "number", description: "Medida vertical ou comprimento bruto lidos na cota" },
+                      largura_bruta: { type: "number", description: "Medida horizontal bruta (se aplicável)" },
+                      quantidade: { type: "number", description: "Quantidade desta peça exata visualizada" },
+                      obs: { type: "string", description: "Sigla ou anotação encontrada ao lado da peça no desenho" }
+                    },
+                    required: ["tipo", "altura_bruta", "quantidade"]
                   }
                 }
-              }
+              },
+              required: ["nome", "x_cm", "y_cm", "componentes_extraidos"]
             }
           });
 
