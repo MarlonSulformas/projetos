@@ -9,6 +9,19 @@ const DESCONTO_ACABAMENTO_TOPO_CM = 7;
 const LIMITE_Y_SIMPLES_CM = 24;
 
 /**
+ * Normaliza texto para comparação resiliente:
+ * remove acentos, converte para minúsculas e faz trim.
+ */
+function normalizarTexto(str) {
+  if (!str) return "";
+  return String(str)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+/**
  * Resolve fórmula paramétrica com [X] e [Y]
  */
 export function resolveFormula(formula, X, Y, MEDIDA = 0, LARGURA = 0) {
@@ -155,8 +168,8 @@ export function aplicarRegrasComponentes(dadosExtraidos, componentesCadastrados)
 
   for (const extraido of (dadosExtraidos.componentes_extraidos || [])) {
     const comp = componentesCadastrados.find(c =>
-      c.tipo === extraido.tipo ||
-      c.nome?.toLowerCase() === extraido.componente_nome?.toLowerCase()
+      normalizarTexto(c.tipo) === normalizarTexto(extraido.tipo) ||
+      normalizarTexto(c.nome) === normalizarTexto(extraido.componente_nome)
     );
 
     if (!comp) {
