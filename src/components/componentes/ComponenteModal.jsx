@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { X, Save, Trash2 } from "lucide-react";
+import RegraVisualBuilder, { formulaParaPassos, passosParaFormula } from "@/components/componentes/RegraVisualBuilder";
 
 const TIPOS_SUGERIDOS = ["compensado", "sarrafo_pressao", "sarrafo_acabamento", "mosca"];
 const CORES = ["#3B82F6", "#F59E0B", "#10B981", "#8B5CF6", "#EF4444", "#0EA5E9", "#6366F1", "#6B7280"];
@@ -14,9 +15,15 @@ export default function ComponenteModal({ componente, onClose, onSave, onDelete 
     regras: componente?.regras || {},
   }));
   const [saving, setSaving] = useState(false);
+  const [passosComprimento, setPassosComprimento] = useState(() => formulaParaPassos(componente?.regras?.formula_comprimento));
 
   function setRegra(chave, valor) {
     setForm(f => ({ ...f, regras: { ...f.regras, [chave]: valor } }));
+  }
+
+  function handlePassosChange(novosPassos) {
+    setPassosComprimento(novosPassos);
+    setRegra("formula_comprimento", passosParaFormula(novosPassos));
   }
 
   function handleSave() {
@@ -111,18 +118,15 @@ export default function ComponenteModal({ componente, onClose, onSave, onDelete 
             </div>
           </div>
 
-          {/* Regras de Medida */}
+          {/* Regra de Comprimento (Visual) */}
           <div className="bg-white border border-[#E5E5E8] rounded-2xl p-4 flex flex-col gap-3">
-            <p className="text-[10px] font-semibold text-[#6B6B72] uppercase tracking-wider">Fórmulas de Medida</p>
-            <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-medium text-[#374151]">Fórmula do comprimento <span className="text-[#9CA3AF]">(use [MEDIDA], [LARGURA], [X], [Y])</span></label>
-              <input
-                value={form.regras.formula_comprimento || ""}
-                onChange={e => setRegra("formula_comprimento", e.target.value)}
-                placeholder="Ex: [MEDIDA] - 0.5   ou   [MEDIDA] - [LARGURA] - 0.5"
-                className="border border-[#E5E5E8] rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#3B82F6] bg-white font-mono"
-              />
-            </div>
+            <p className="text-[10px] font-semibold text-[#6B6B72] uppercase tracking-wider">Regra de Comprimento</p>
+            <RegraVisualBuilder passos={passosComprimento} onChange={handlePassosChange} />
+          </div>
+
+          {/* Regra de Largura */}
+          <div className="bg-white border border-[#E5E5E8] rounded-2xl p-4 flex flex-col gap-3">
+            <p className="text-[10px] font-semibold text-[#6B6B72] uppercase tracking-wider">Regra de Largura</p>
             <div className="flex flex-col gap-1">
               <label className="text-[11px] font-medium text-[#374151]">Fórmula da largura <span className="text-[#9CA3AF]">(use [MEDIDA], [LARGURA], [X], [Y])</span></label>
               <input
@@ -136,7 +140,8 @@ export default function ComponenteModal({ componente, onClose, onSave, onDelete 
 
           {/* Regras de Desconto */}
           <div className="bg-white border border-[#E5E5E8] rounded-2xl p-4 flex flex-col gap-3">
-            <p className="text-[10px] font-semibold text-[#6B6B72] uppercase tracking-wider">Descontos</p>
+            <p className="text-[10px] font-semibold text-[#6B6B72] uppercase tracking-wider">Descontos (alternativo)</p>
+            <p className="text-[10px] text-[#9CA3AF] -mt-1">Só se aplicam se não houver passos na regra visual acima.</p>
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1">
                 <label className="text-[11px] font-medium text-[#374151]">Desconto fixo (cm)</label>
