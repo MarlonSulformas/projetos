@@ -192,6 +192,11 @@ export default function Componentes() {
                         {regras.formula_comprimento}
                       </span>
                     ) : null}
+                    {regras.largura ? (
+                      <span className="text-[10px] bg-[#F3F4F6] text-[#374151] border border-[#E5E5E8] rounded-md px-2 py-0.5 font-medium">
+                        L: {regras.largura}cm
+                      </span>
+                    ) : null}
                     {regras.regra_qty_y ? (
                       <span className="text-[10px] bg-[#EDE9FE] text-[#7C3AED] border border-[#DDD6FE] rounded-md px-2 py-0.5 font-medium">
                         Qtd por Y

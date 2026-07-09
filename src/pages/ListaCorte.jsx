@@ -263,28 +263,36 @@ export default function ListaCorte() {
           ? componentes.map(c => `- ${c.nome} (tipo: "${c.tipo}")`).join("\n")
           : "Nenhum componente cadastrado ainda";
 
-        const prompt = `Você é um EXTRATOR de dados técnicos. Analise esta prancha e extraia APENAS as medidas brutas que aparecem no desenho.
+        const prompt = `Você é um EXTRATOR de dados técnicos. Analise esta prancha e extraia APENAS as medidas anotadas no desenho (linhas de cota).
 
-NÃO faça cálculos. NÃO aplique descontos. NÃO calcule emendas. Extraia os valores exatamente como aparecem na prancha.
+NÃO faça cálculos. NÃO aplique descontos. NÃO calcule emendas. Extraia os valores exatamente como aparecem nas anotações de dimensão.
 
-COMPONENTES CADASTRADOS NO SISTEMA (identifique cada um na prancha):
+COMPONENTES CADASTRADOS NO SISTEMA (identifique cada um na prancha pelo seu tipo):
 ${componentesList}
 
 TAREFA:
-1. Identifique o nome/ID do elemento (ex: P1, Pilar-01)
-2. Extraia a altura total X (em cm)
-3. Extraia a largura total Y (em cm)
-4. Para cada componente encontrado, extraia a medida BRUTA (altura e largura em cm, sem nenhum desconto)
+1. Identifique o nome/ID do elemento (ex: P6B3, P1, Pilar-01)
+2. Extraia a altura total X (em cm) — dimensão vertical principal do painel
+3. Extraia a largura total Y (em cm) — dimensão horizontal principal do painel
+4. Para cada componente encontrado na prancha:
+   - Identifique pelo tipo cadastrado acima (cada sarrafo de acabamento numerado é um tipo diferente)
+   - Extraia a MEDIDA BRUTA anotada no desenho (o número que aparece na linha de cota do componente)
+   - Para o compensado, extraia ambas as dimensões (altura_bruta e largura_bruta)
+   - Para sarrafos, extraia apenas a medida anotada (altura_bruta = medida, largura_bruta = 0)
+   - Se houver múltiplos do mesmo tipo (ex: 2 sarrafos de pressão em extremidades diferentes), crie uma entrada para cada com sua respectiva medida
 
 Responda SOMENTE em JSON válido:
 {
-  "nome": "P1",
-  "x_cm": 324,
-  "y_cm": 19,
+  "nome": "P6B3",
+  "x_cm": 60,
+  "y_cm": 115.4,
   "componentes_extraidos": [
-    {"tipo": "compensado", "componente_nome": "Compensado", "altura_bruta": 324, "largura_bruta": 19, "quantidade": 1},
-    {"tipo": "sarrafo_pressao", "componente_nome": "Sarrafo de Pressão", "altura_bruta": 324, "largura_bruta": 4, "quantidade": 2},
-    {"tipo": "mosca", "componente_nome": "Mosca", "altura_bruta": 16, "largura_bruta": 95, "quantidade": 1, "obs": "fixada em P6A3"}
+    {"tipo": "compensado", "componente_nome": "Compensado", "altura_bruta": 60, "largura_bruta": 115.4, "quantidade": 1},
+    {"tipo": "sarrafo_pressao", "componente_nome": "Sarrafo de Pressão", "altura_bruta": 40, "largura_bruta": 0, "quantidade": 1},
+    {"tipo": "sarrafo_pressao", "componente_nome": "Sarrafo de Pressão", "altura_bruta": 60, "largura_bruta": 0, "quantidade": 1},
+    {"tipo": "sarrafo_acabamento_1", "componente_nome": "Sarrafo de Acabamento 1", "altura_bruta": 71.5, "largura_bruta": 0, "quantidade": 1},
+    {"tipo": "sarrafo_acabamento_2", "componente_nome": "Sarrafo de Acabamento 2", "altura_bruta": 20, "largura_bruta": 0, "quantidade": 1},
+    {"tipo": "sarrafo_acabamento_3", "componente_nome": "Sarrafo de Acabamento 3", "altura_bruta": 43.9, "largura_bruta": 0, "quantidade": 1}
   ]
 }
 

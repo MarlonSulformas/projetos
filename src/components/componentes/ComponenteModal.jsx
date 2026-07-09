@@ -98,26 +98,37 @@ export default function ComponenteModal({ componente, onClose, onSave, onDelete 
                 ))}
               </div>
             </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-medium text-[#374151]">Largura do componente (cm) <span className="text-[#9CA3AF]">(usado como [LARGURA] nas fórmulas)</span></label>
+              <input
+                type="number"
+                step="0.1"
+                value={form.regras.largura || ""}
+                onChange={e => setRegra("largura", e.target.value ? parseFloat(e.target.value) : null)}
+                placeholder="Ex: 6.5"
+                className="border border-[#E5E5E8] rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#3B82F6] bg-white"
+              />
+            </div>
           </div>
 
           {/* Regras de Medida */}
           <div className="bg-white border border-[#E5E5E8] rounded-2xl p-4 flex flex-col gap-3">
             <p className="text-[10px] font-semibold text-[#6B6B72] uppercase tracking-wider">Fórmulas de Medida</p>
             <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-medium text-[#374151]">Fórmula do comprimento <span className="text-[#9CA3AF]">(use [X] e [Y])</span></label>
+              <label className="text-[11px] font-medium text-[#374151]">Fórmula do comprimento <span className="text-[#9CA3AF]">(use [MEDIDA], [LARGURA], [X], [Y])</span></label>
               <input
                 value={form.regras.formula_comprimento || ""}
                 onChange={e => setRegra("formula_comprimento", e.target.value)}
-                placeholder="Ex: [X] - 7   (vazio = usar medida bruta)"
+                placeholder="Ex: [MEDIDA] - 0.5   ou   [MEDIDA] - [LARGURA] - 0.5"
                 className="border border-[#E5E5E8] rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#3B82F6] bg-white font-mono"
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-medium text-[#374151]">Fórmula da largura <span className="text-[#9CA3AF]">(use [X] e [Y])</span></label>
+              <label className="text-[11px] font-medium text-[#374151]">Fórmula da largura <span className="text-[#9CA3AF]">(use [MEDIDA], [LARGURA], [X], [Y])</span></label>
               <input
                 value={form.regras.formula_largura || ""}
                 onChange={e => setRegra("formula_largura", e.target.value)}
-                placeholder="Ex: [Y]   (vazio = usar medida bruta)"
+                placeholder="Ex: [Y]   (vazio = usar medida bruta do desenho)"
                 className="border border-[#E5E5E8] rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#3B82F6] bg-white font-mono"
               />
             </div>

@@ -11,9 +11,13 @@ const LIMITE_Y_SIMPLES_CM = 24;
 /**
  * Resolve fórmula paramétrica com [X] e [Y]
  */
-export function resolveFormula(formula, X, Y) {
+export function resolveFormula(formula, X, Y, MEDIDA = 0, LARGURA = 0) {
   if (!formula) return 0;
-  const str = String(formula).replace(/\[X\]/g, X).replace(/\[Y\]/g, Y);
+  const str = String(formula)
+    .replace(/\[X\]/g, X)
+    .replace(/\[Y\]/g, Y)
+    .replace(/\[MEDIDA\]/g, MEDIDA)
+    .replace(/\[LARGURA\]/g, LARGURA);
   try { return Math.max(0, parseFloat(eval(str)) || 0); } catch { return 0; }
 }
 
@@ -168,23 +172,32 @@ export function aplicarRegrasComponentes(dadosExtraidos, componentesCadastrados)
     }
 
     const regras = comp.regras || {};
-    let comprimento = parseFloat(extraido.altura_bruta) || 0;
+    const MEDIDA = parseFloat(extraido.altura_bruta) || 0;
+    const LARGURA_COMP = parseFloat(regras.largura) || 0;
+    let comprimento = MEDIDA;
     let largura = parseFloat(extraido.largura_bruta) || 0;
 
-    // Fórmulas paramétricas [X] e [Y]
-    if (regras.formula_comprimento) comprimento = resolveFormula(regras.formula_comprimento, X, Y);
-    if (regras.formula_largura) largura = resolveFormula(regras.formula_largura, X, Y);
-
-    // Descontos
-    if (regras.desconto_fixo) comprimento -= parseFloat(regras.desconto_fixo);
-    if (regras.desconto_percentual) comprimento *= (1 - parseFloat(regras.desconto_percentual) / 100);
-    if (regras.folga) comprimento -= parseFloat(regras.folga);
+    // Fórmulas paramétricas: [MEDIDA], [LARGURA], [X], [Y]
+    if (regras.formula_comprimento) {
+      comprimento = resolveFormula(regras.formula_comprimento, X, Y, MEDIDA, LARGURA_COMP);
+    } else {
+      // Descontos só aplicam se não houver fórmula manual
+      if (regras.desconto_fixo) comprimento -= parseFloat(regras.desconto_fixo);
+      if (regras.desconto_percentual) comprimento *= (1 - parseFloat(regras.desconto_percentual) / 100);
+      if (regras.folga) comprimento -= parseFloat(regras.folga);
+    }
+    if (regras.formula_largura) {
+      largura = resolveFormula(regras.formula_largura, X, Y, MEDIDA, LARGURA_COMP);
+    }
 
     // Quantidade
     let quantidade = parseInt(regras.quantidade) || extraido.quantidade || 1;
     if (regras.regra_qty_y && Y > (regras.limite_y_simples || 24)) {
       quantidade = parseInt(regras.qty_extra) || 2;
     }
+
+    // Formatar dimensões: se tem largura (compensado), mostra "C x L"; senão só comprimento
+    const fmtDim = (c, l) => l > 0 ? `${c} x ${l} cm` : `${c} cm`;
 
     // Emenda
     if (regras.regra_emenda && comprimento > (regras.limite_emenda || 244)) {
@@ -193,14 +206,14 @@ export function aplicarRegrasComponentes(dadosExtraidos, componentesCadastrados)
       linhas.push({
         componente: comp.nome,
         quantidade,
-        dimensoes: `${modulo} x ${Math.round(largura * 10) / 10} cm`,
+        dimensoes: fmtDim(modulo, Math.round(largura * 10) / 10),
         obs: "Peça padrão (emenda)",
         cor: comp.cor || "#6B7280",
       });
       linhas.push({
         componente: comp.nome,
         quantidade,
-        dimensoes: `${pecaEmenda} x ${Math.round(largura * 10) / 10} cm`,
+        dimensoes: fmtDim(pecaEmenda, Math.round(largura * 10) / 10),
         obs: "Peça de emenda",
         cor: comp.cor || "#6B7280",
       });
@@ -209,12 +222,12 @@ export function aplicarRegrasComponentes(dadosExtraidos, componentesCadastrados)
       const larguraFinal = Math.round(largura * 10) / 10;
       const obsParts = [];
       if (extraido.obs) obsParts.push(extraido.obs);
-      if (regras.desconto_fixo) obsParts.push(`−${regras.desconto_fixo}cm`);
-      if (regras.desconto_percentual) obsParts.push(`−${regras.desconto_percentual}%`);
+      if (!regras.formula_comprimento && regras.desconto_fixo) obsParts.push(`−${regras.desconto_fixo}cm`);
+      if (!regras.formula_comprimento && regras.desconto_percentual) obsParts.push(`−${regras.desconto_percentual}%`);
       linhas.push({
         componente: comp.nome,
         quantidade,
-        dimensoes: `${comprimentoFinal} x ${larguraFinal} cm`,
+        dimensoes: fmtDim(comprimentoFinal, larguraFinal),
         obs: obsParts.join(" · ") || "—",
         cor: comp.cor || "#6B7280",
       });
