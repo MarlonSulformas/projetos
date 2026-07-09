@@ -69,11 +69,15 @@ CREATE TABLE IF NOT EXISTS componentes (
   id_projetista uuid REFERENCES projetistas(id) ON DELETE CASCADE,
   nome text NOT NULL,
   tipo text NOT NULL,
+  dica_visual text,
   cor text DEFAULT '#6B7280',
   regras jsonb DEFAULT '{}'::jsonb,
   ativo boolean DEFAULT true,
   created_at timestamptz DEFAULT now()
 );
+
+-- Se a tabela já existe, adiciona a coluna dica_visual
+ALTER TABLE componentes ADD COLUMN IF NOT EXISTS dica_visual text;
 
 ALTER TABLE componentes ENABLE ROW LEVEL SECURITY;
 

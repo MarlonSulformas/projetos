@@ -259,27 +259,48 @@ export default function ListaCorte() {
         const img = imagensComUrl[i];
         setProgresso({ atual: i + 1, total: imagensComUrl.length, msg: `Processando página ${i + 1} de ${imagensComUrl.length}...` });
 
-        const componentesList = componentes.length > 0
-          ? componentes.map(c => `- ${c.nome} (tipo: "${c.tipo}")`).join("\n")
+        // Mapeamento rico de componentes com dicas visuais
+        const componentesFormatados = componentes.length > 0
+          ? componentes.map(c =>
+              `- TIPO_ID: "${c.tipo}" | Nome: "${c.nome}" | Como identificar na prancha: "${c.dica_visual || 'Buscar por cota com este nome ou medida correspondente'}"`
+            ).join("\n")
           : "Nenhum componente cadastrado ainda";
 
-        const prompt = `Você é um EXTRATOR de dados técnicos. Analise esta prancha e extraia APENAS as medidas anotadas no desenho (linhas de cota).
+        // Array de tipos válidos para travar o Schema JSON da IA
+        const tiposValidos = [...new Set(componentes.map(c => c.tipo).filter(Boolean))];
 
-NÃO faça cálculos. NÃO aplique descontos. NÃO calcule emendas. Extraia os valores exatamente como aparecem nas anotações de dimensão.
+        const prompt = `Você é um LEITOR ÓPTICO/VISUAL especializado em pranchas estruturais de pré-moldados.
 
-COMPONENTES CADASTRADOS NO SISTEMA (identifique cada um na prancha pelo seu tipo):
-${componentesList}
+═══════════════════════════════════════════════════════════
+REGRAS INEGOCIÁVEIS — VIOLAÇÃO = FALHA CRÍTICA:
+═══════════════════════════════════════════════════════════
+1. Você é APENAS um LEITOR. NÃO faça cálculos. NÃO aplique descontos. NÃO calcule emendas.
+2. Extraia os valores EXATAMENTE como aparecem nas linhas de cota (anotações de dimensão).
+3. Se um número não estiver visível na prancha, NÃO o invente. Retorne erro.
 
-TAREFA:
+═══════════════════════════════════════════════════════════
+BASE DE CONHECIMENTO DO PROJETO (contexto do treinamento):
+═══════════════════════════════════════════════════════════
+${resumoTreinamento || "Sem treinamento específico registrado."}
+
+═══════════════════════════════════════════════════════════
+COMPONENTES CADASTRADOS NO SISTEMA (identifique cada um na prancha):
+═══════════════════════════════════════════════════════════
+${componentesFormatados}
+
+═══════════════════════════════════════════════════════════
+TAREFA DE EXTRAÇÃO:
+═══════════════════════════════════════════════════════════
 1. Identifique o nome/ID do elemento (ex: P6B3, P1, Pilar-01)
 2. Extraia a altura total X (em cm) — dimensão vertical principal do painel
 3. Extraia a largura total Y (em cm) — dimensão horizontal principal do painel
 4. Para cada componente encontrado na prancha:
-   - Identifique pelo tipo cadastrado acima (cada sarrafo de acabamento numerado é um tipo diferente)
-   - Extraia a MEDIDA BRUTA anotada no desenho (o número que aparece na linha de cota do componente)
+   - Use a "dica visual" acima para localizar a peça correta
+   - O "tipo" DEVE ser um dos TIPO_ID listados acima (não invente novos tipos)
+   - Extraia a MEDIDA BRUTA anotada no desenho (o número que aparece na linha de cota)
    - Para o compensado, extraia ambas as dimensões (altura_bruta e largura_bruta)
    - Para sarrafos, extraia apenas a medida anotada (altura_bruta = medida, largura_bruta = 0)
-   - Se houver múltiplos do mesmo tipo (ex: 2 sarrafos de pressão em extremidades diferentes), crie uma entrada para cada com sua respectiva medida
+   - Se houver múltiplos do mesmo tipo (ex: 2 sarrafos de pressão), crie uma entrada para cada
 
 Responda SOMENTE em JSON válido:
 {
@@ -289,10 +310,7 @@ Responda SOMENTE em JSON válido:
   "componentes_extraidos": [
     {"tipo": "compensado", "componente_nome": "Compensado", "altura_bruta": 60, "largura_bruta": 115.4, "quantidade": 1},
     {"tipo": "sarrafo_pressao", "componente_nome": "Sarrafo de Pressão", "altura_bruta": 40, "largura_bruta": 0, "quantidade": 1},
-    {"tipo": "sarrafo_pressao", "componente_nome": "Sarrafo de Pressão", "altura_bruta": 60, "largura_bruta": 0, "quantidade": 1},
-    {"tipo": "sarrafo_acabamento_1", "componente_nome": "Sarrafo de Acabamento 1", "altura_bruta": 71.5, "largura_bruta": 0, "quantidade": 1},
-    {"tipo": "sarrafo_acabamento_2", "componente_nome": "Sarrafo de Acabamento 2", "altura_bruta": 20, "largura_bruta": 0, "quantidade": 1},
-    {"tipo": "sarrafo_acabamento_3", "componente_nome": "Sarrafo de Acabamento 3", "altura_bruta": 43.9, "largura_bruta": 0, "quantidade": 1}
+    {"tipo": "sarrafo_acabamento_1", "componente_nome": "Sarrafo de Acabamento 1", "altura_bruta": 71.5, "largura_bruta": 0, "quantidade": 1}
   ]
 }
 
@@ -315,7 +333,7 @@ Se não conseguir extrair, responda: {"erro": "descrição do problema"}`;
                   items: {
                     type: "object",
                     properties: {
-                      tipo: { type: "string" },
+                      tipo: tiposValidos.length > 0 ? { type: "string", enum: tiposValidos } : { type: "string" },
                       componente_nome: { type: "string" },
                       altura_bruta: { type: "number" },
                       largura_bruta: { type: "number" },

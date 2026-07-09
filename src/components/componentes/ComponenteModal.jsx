@@ -10,6 +10,7 @@ export default function ComponenteModal({ componente, onClose, onSave, onDelete 
   const [form, setForm] = useState(() => ({
     nome: componente?.nome || "",
     tipo: componente?.tipo || "",
+    dica_visual: componente?.dica_visual || "",
     cor: componente?.cor || "#3B82F6",
     ativo: componente?.ativo !== false,
     regras: componente?.regras || {},
@@ -91,6 +92,16 @@ export default function ComponenteModal({ componente, onClose, onSave, onDelete 
               <datalist id="tipos-sugeridos">
                 {TIPOS_SUGERIDOS.map(t => <option key={t} value={t} />)}
               </datalist>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-medium text-[#374151]">Dica visual <span className="text-[#9CA3AF]">(como a IA encontra a peça na prancha)</span></label>
+              <textarea
+                value={form.dica_visual}
+                onChange={e => setForm(f => ({ ...f, dica_visual: e.target.value }))}
+                placeholder="Ex: Sarrafo vertical anotado na lateral como SV, com cotas na vertical"
+                rows={2}
+                className="border border-[#E5E5E8] rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#3B82F6] bg-white resize-none"
+              />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-[11px] font-medium text-[#374151]">Cor (identificação visual)</label>
